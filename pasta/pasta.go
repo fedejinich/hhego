@@ -8,6 +8,7 @@ const SecretKeySize = 256
 const PlaintextSize = 128
 const CiphertextSize = 128
 
+// todo(fedejinich) refactor this to PastaParams
 type Params struct {
 	SecretKeySize uint64
 	PlainSize     uint64

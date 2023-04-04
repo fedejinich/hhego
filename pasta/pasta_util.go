@@ -13,7 +13,7 @@ const PastaT = PlaintextSize // plain text size
 type SecretKey []uint64
 type Block [PastaT]uint64
 
-type PastaUtil struct {
+type Util struct {
 	shake128_ sha3.ShakeHash
 
 	secretKey_       SecretKey
@@ -24,17 +24,18 @@ type PastaUtil struct {
 	rounds int
 }
 
-func NewPastaUtil(secretKey []uint64, modulus uint64, rounds int) PastaUtil {
+func NewPastaUtil(secretKey []uint64, modulus uint64, rounds int) Util {
 	var state1, state2 [PastaT]uint64
+	p := modulus
 
 	maxPrimeSize := uint64(0)
-	for modulus > 0 {
+	for p > 0 {
 		maxPrimeSize++
-		modulus >>= 1
+		p >>= 1
 	}
 	maxPrimeSize = (1 << maxPrimeSize) - 1
 
-	return PastaUtil{
+	return Util{
 		nil,
 		secretKey,
 		state1,
@@ -45,7 +46,7 @@ func NewPastaUtil(secretKey []uint64, modulus uint64, rounds int) PastaUtil {
 	}
 }
 
-func (p *PastaUtil) Keystream(nonce uint64, blockCounter uint64) Block {
+func (p *Util) Keystream(nonce uint64, blockCounter uint64) Block {
 	p.InitShake(nonce, blockCounter)
 
 	// init state
@@ -64,7 +65,7 @@ func (p *PastaUtil) Keystream(nonce uint64, blockCounter uint64) Block {
 	return p.state1_
 }
 
-func (p *PastaUtil) InitShake(nonce, blockCounter uint64) {
+func (p *Util) InitShake(nonce, blockCounter uint64) {
 	seed := make([]byte, 16)
 
 	binary.BigEndian.PutUint64(seed[:8], nonce)
@@ -78,18 +79,16 @@ func (p *PastaUtil) InitShake(nonce, blockCounter uint64) {
 	p.shake128_ = shake
 }
 
-// todo(fedejinich) review this
-func (p *PastaUtil) RandomMatrix() [][]uint64 {
+func (p *Util) RandomMatrix() [][]uint64 {
 	mat := make([][]uint64, PastaT)
 	mat[0] = p.getRandomVector(false)
 	for i := uint64(1); i < PastaT; i++ {
-		mat[i] = p.calculateRow(mat[i-1], mat[0])
+		mat[i] = p.calculateRow(mat[i-1], mat[0]) // todo(fedejinich) this might be changed for calculateColumn
 	}
 	return mat
 }
 
-// todo(fedejinich) review this
-func (p *PastaUtil) RCVec(vecSize int) []uint64 {
+func (p *Util) RCVec(vecSize uint64) []uint64 {
 	rc := make([]uint64, vecSize+PastaT)
 	for i := 0; i < PastaT; i++ {
 		rc[i] = p.generateRandomFieldElement(false)
@@ -100,7 +99,7 @@ func (p *PastaUtil) RCVec(vecSize int) []uint64 {
 	return rc
 }
 
-func (p *PastaUtil) getRandomVector(allowZero bool) []uint64 {
+func (p *Util) getRandomVector(allowZero bool) []uint64 {
 	rc := make([]uint64, PastaT)
 	for i := uint16(0); i < uint16(PastaT); i++ {
 		rc[i] = p.generateRandomFieldElement(allowZero)
@@ -108,7 +107,7 @@ func (p *PastaUtil) getRandomVector(allowZero bool) []uint64 {
 	return rc
 }
 
-func (p *PastaUtil) generateRandomFieldElement(allowZero bool) uint64 {
+func (p *Util) generateRandomFieldElement(allowZero bool) uint64 {
 	var randomBytes [8]byte
 	for {
 		if _, err := p.shake128_.Read(randomBytes[:]); err != nil {
@@ -128,7 +127,7 @@ func (p *PastaUtil) generateRandomFieldElement(allowZero bool) uint64 {
 }
 
 // The r-round Pasta construction to generate the keystream KN,i for block i under nonce N with affine layers Aj.
-func (p *PastaUtil) round(r int) {
+func (p *Util) round(r int) {
 	// Ai
 	p.linearLayer()
 
@@ -143,7 +142,7 @@ func (p *PastaUtil) round(r int) {
 }
 
 // Aij(y) = Mij X y + cij
-func (p *PastaUtil) linearLayer() {
+func (p *Util) linearLayer() {
 	p.matmul(&p.state1_)
 	p.matmul(&p.state2_)
 
@@ -154,7 +153,7 @@ func (p *PastaUtil) linearLayer() {
 }
 
 // Mij X y
-func (p *PastaUtil) matmul(state *Block) {
+func (p *Util) matmul(state *Block) {
 	var newState Block
 
 	rand := p.getRandomVector(false)
@@ -171,14 +170,14 @@ func (p *PastaUtil) matmul(state *Block) {
 			newState[i] = (newState[i] + mult.Uint64()) % p.modulus
 		}
 		if i != PastaT-1 {
-			currRow = p.calculateRow(currRow, rand)
+			currRow = p.calculateRow(currRow, rand) // todo(fedejinich) if rows are columns, is this ok?
 		}
 	}
 	*state = newState
 }
 
 // + cij
-func (p *PastaUtil) addRc(state *Block) {
+func (p *Util) addRc(state *Block) {
 	for i := 0; i < PastaT; i++ {
 		randomFE := p.generateRandomFieldElement(true)
 
@@ -194,7 +193,7 @@ func (p *PastaUtil) addRc(state *Block) {
 }
 
 // [S(x)]i = (x)3
-func (p *PastaUtil) sboxCube(state *Block) {
+func (p *Util) sboxCube(state *Block) {
 	for i := 0; i < PastaT; i++ {
 		currentState := big.NewInt(int64(state[i]))
 		modulus := big.NewInt(int64(p.modulus))
@@ -208,7 +207,7 @@ func (p *PastaUtil) sboxCube(state *Block) {
 }
 
 // S'(x) = x + (rot(-1)(x) . m)^2
-func (p *PastaUtil) sboxFeistel(state *Block) {
+func (p *Util) sboxFeistel(state *Block) {
 	pastaP := big.NewInt(int64(p.modulus))
 	var newState Block
 	newState[0] = state[0]
@@ -227,7 +226,7 @@ func (p *PastaUtil) sboxFeistel(state *Block) {
 	*state = newState
 }
 
-func (p *PastaUtil) calculateRow(prevRow, firstRow []uint64) []uint64 {
+func (p *Util) calculateRow(prevRow, firstRow []uint64) []uint64 {
 	out := make([]uint64, PastaT)
 
 	prevRowLast := big.NewInt(int64(prevRow[PastaT-1]))
@@ -251,7 +250,7 @@ func (p *PastaUtil) calculateRow(prevRow, firstRow []uint64) []uint64 {
 	return out
 }
 
-func (p *PastaUtil) mix() {
+func (p *Util) mix() {
 	for i := 0; i < PastaT; i++ {
 		pastaP := big.NewInt(int64(p.modulus))
 		state1 := big.NewInt(int64(p.state1_[i]))

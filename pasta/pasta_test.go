@@ -6,9 +6,6 @@ import (
 	"testing"
 )
 
-const NumMatmulsSquares = 3
-const LastSquare = false
-
 var TestParams = Params{SecretKeySize, PlaintextSize, CiphertextSize, 3}
 
 func TestBasicEncryptionDecryption(t *testing.T) {

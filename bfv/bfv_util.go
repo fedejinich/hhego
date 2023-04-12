@@ -18,7 +18,7 @@ func NewBFVUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Eva
 
 func (bfvUtil *Util) matmulDecomp(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, sealParams SealParams) {
 	// todo(fedejinich) should also implement 'baby step gigant step'
-	matrixDim := pasta.PastaT
+	matrixDim := pasta.T
 
 	if uint64(matrixDim*2) != sealParams.Slots && uint64(matrixDim*4) > sealParams.Slots {
 		panic("too little slots for matmul implementation!")
@@ -80,13 +80,13 @@ func (bfvUtil *Util) sboxFeistelDecomp(state *rlwe.Ciphertext, sealParams SealPa
 
 	// mask rotate state
 	mask := bfv.NewPlaintext(bfvUtil.bfvParams, state.Level()) // todo(fedejinich) not sure about 'Level'
-	maskVec := make([]uint64, pasta.PastaT+sealParams.Halfslots)
+	maskVec := make([]uint64, pasta.T+sealParams.Halfslots)
 	for i := range maskVec {
 		maskVec[i] = 1 // todo(fedejinich) is this ok?
 	}
 	maskVec[0] = 0
 	maskVec[sealParams.Halfslots] = 0
-	for i := uint64(pasta.PastaT); i < sealParams.Halfslots; i++ {
+	for i := uint64(pasta.T); i < sealParams.Halfslots; i++ {
 		maskVec[i] = 0
 	}
 	bfvUtil.encoder.Encode(maskVec, mask)

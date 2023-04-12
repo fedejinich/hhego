@@ -38,7 +38,7 @@ func (p *Pasta) Encrypt(plaintext []uint64) []uint64 {
 
 	numBlock := int(math.Ceil(float64(size) / float64(p.CipherParams.PlainSize)))
 
-	pastaUtil := NewPastaUtil(p.SecretKey, p.Modulus, int(p.CipherParams.Rounds))
+	pastaUtil := NewUtil(p.SecretKey, p.Modulus, int(p.CipherParams.Rounds))
 	ciphertext := make([]uint64, size)
 	copy(ciphertext, plaintext)
 
@@ -58,7 +58,7 @@ func (p *Pasta) Decrypt(ciphertext []uint64) []uint64 {
 
 	numBlock := int(math.Ceil(float64(size) / float64(p.CipherParams.CipherSize)))
 
-	pasta := NewPastaUtil(p.SecretKey, p.Modulus, int(p.CipherParams.Rounds))
+	pasta := NewUtil(p.SecretKey, p.Modulus, int(p.CipherParams.Rounds))
 	plaintext := make([]uint64, size)
 	copy(plaintext, ciphertext)
 

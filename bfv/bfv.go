@@ -52,7 +52,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 	numBlock := math.Ceil(float64(size) / float64(bfvCipher.pastaParams.CipherSize)) // todo(fedejinich) float?
 
 	// todo(fedejinich) not sure about secretKey
-	pastaUtil := pasta.NewPastaUtil(secretKey.Value[0].Buff, uint64(bfvCipher.pastaParams.Modulus), bfvCipher.pastaParams.Rounds)
+	pastaUtil := pasta.NewUtil(secretKey.Value[0].Buff, uint64(bfvCipher.pastaParams.Modulus), bfvCipher.pastaParams.Rounds)
 	bfvUtil := NewBFVUtil(bfvCipher.bfvParams, bfvCipher.encoder, bfvCipher.evaluator)
 	result := make([]rlwe.Ciphertext, int(numBlock))
 

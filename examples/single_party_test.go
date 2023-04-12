@@ -171,28 +171,29 @@ func packedTest(t *testing.T, secretKey []uint64, plainMod, modDegree, secLevel,
 		4369324368,
 		15021756563585537025,
 	}
-	bfvCipher, _, _, bfvEncoder, bfvParams := newBFVCipher(t, sealParams, pastaParams)
+	bfvCipher, bfvEncoder, bfvParams := newBFVCipher(t, sealParams, pastaParams)
 
-	ciphSec := bfvCipher.Encrypt(bfvEncoder.EncodeNew(secretKey, bfvParams.MaxLevel())) // todo(fedejinich) not sure about MaxLevel
+	plaintext := bfvEncoder.EncodeNew(secretKey, bfvParams.MaxLevel(), bfvParams.DefaultScale()) // todo(fedejinich) not sure about scale
+	ciphSec := bfvCipher.Encrypt(plaintext)                                                      // todo(fedejinich) not sure about MaxLevel
 
 	bfvCipher.Decomp(ciph, ciphSec)
 
 	// TODO(fedejinich): This is not finished yet.
 }
 
-func newBFVCipher(t *testing.T, sealParams hhegobfv.SealParams, pastaParams hhegobfv.PastaParams) (hhegobfv.BFVCipher, rlwe.EvaluationKey,
-	bfv.Evaluator, bfv.Encoder, bfv.Parameters) {
+func newBFVCipher(t *testing.T, sealParams hhegobfv.SealParams, pastaParams hhegobfv.PastaParams) (hhegobfv.BFVCipher,
+	bfv.Encoder, bfv.Parameters) {
 	// BFV parameters (128 bit security)
 	bfvParams, err := bfv.NewParametersFromLiteral(bfv.PN12QP101pq) // post-quantum params
 	if err != nil {
 		t.Errorf("couldn't initialize bfvParams")
 	}
 	kgen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := kgen.GenKeyPair()
-	evaluationKey := rlwe.EvaluationKey{}
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evaluationKey) // todo(fedejinich) not sure about evaluation evaluationKey
+	secretKey, _ := kgen.GenKeyPairNew()
+	evaluationKeySet := rlwe.NewEvaluationKeySet()                // todo(fedejinich) this evaluation key set shoudl have rotation keys
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, evaluationKeySet) // todo(fedejinich) not sure about evaluation evaluationKey
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, sealParams, bfvEvaluator, bfvEncoder, pastaParams) // todo(fedejinich) can also be encrypted with the PK
 
-	return bfvCipher, evaluationKey, bfvEvaluator, bfvEncoder, bfvParams
+	return bfvCipher, bfvEncoder, bfvParams
 }

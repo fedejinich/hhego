@@ -67,13 +67,13 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 			mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(bfvCipher.sealParams.Halfslots)
 
-			bfvUtil.matmulDecomp(state, mat1, mat2, bfvCipher.sealParams)
-			bfvUtil.addRcDecomp(state, rc)
-			bfvUtil.mixDecomp(state)
+			bfvUtil.Matmul(state, mat1, mat2, bfvCipher.sealParams)
+			bfvUtil.AddRc(state, rc)
+			bfvUtil.Mix(state)
 			if r == bfvCipher.pastaParams.Rounds {
-				bfvUtil.sboxCubeDecomp(state)
+				bfvUtil.SboxCube(state)
 			} else {
-				bfvUtil.sboxFeistelDecomp(state, bfvCipher.sealParams)
+				bfvUtil.SboxFeistel(state, bfvCipher.sealParams)
 			}
 
 			//printNoise(state)
@@ -83,9 +83,9 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		mat1 := pastaUtil.RandomMatrix()
 		mat2 := pastaUtil.RandomMatrix()
 		rc := pastaUtil.RCVec(bfvCipher.sealParams.Halfslots)
-		bfvUtil.matmulDecomp(state, mat1, mat2, bfvCipher.sealParams)
-		bfvUtil.addRcDecomp(state, rc)
-		bfvUtil.mixDecomp(state)
+		bfvUtil.Matmul(state, mat1, mat2, bfvCipher.sealParams)
+		bfvUtil.AddRc(state, rc)
+		bfvUtil.Mix(state)
 
 		// add cipher
 		offset := b * bfvCipher.pastaParams.CipherSize

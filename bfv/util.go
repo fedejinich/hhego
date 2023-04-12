@@ -16,7 +16,7 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 	return Util{bfvParams, encoder, evaluator}
 }
 
-func (u *Util) matmulDecomp(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, sealParams SealParams) {
+func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, sealParams SealParams) {
 	// todo(fedejinich) should also implement 'baby step gigant step'
 	matrixDim := pasta.T
 
@@ -56,25 +56,25 @@ func (u *Util) matmulDecomp(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]ui
 	state = sum
 }
 
-func (u *Util) addRcDecomp(state *rlwe.Ciphertext, rc []uint64) {
+func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) {
 	roundConstants := bfv.NewPlaintext(u.bfvParams, state.Level()) // todo(fedejinich) not sure about Level
 	u.encoder.Encode(rc, roundConstants)
 	u.evaluator.Add(state, roundConstants, state)
 }
 
-func (u *Util) mixDecomp(state *rlwe.Ciphertext) {
+func (u *Util) Mix(state *rlwe.Ciphertext) {
 	tmp := u.evaluator.RotateRowsNew(state) // todo(fedejinich) this is called 'rotate_columns' in SEAL
 	u.evaluator.Add(tmp, state, state)
 	u.evaluator.Add(state, tmp, state)
 }
 
-func (u Util) sboxCubeDecomp(state *rlwe.Ciphertext) {
+func (u *Util) SboxCube(state *rlwe.Ciphertext) {
 	for i := 0; i < 3; i++ {
 		u.evaluator.Mul(state, state, state)
 	}
 }
 
-func (u *Util) sboxFeistelDecomp(state *rlwe.Ciphertext, sealParams SealParams) {
+func (u *Util) SboxFeistel(state *rlwe.Ciphertext, sealParams SealParams) {
 	// rotate state
 	stateRot := u.evaluator.RotateColumnsNew(state, -1) // todo(fedejinich) this is called 'rotate_rows' in SEAL
 

@@ -91,10 +91,10 @@ func (u *Util) RandomMatrix() [][]uint64 {
 func (u *Util) RCVec(vecSize uint64) []uint64 {
 	rc := make([]uint64, vecSize+T)
 	for i := 0; i < T; i++ {
-		rc[i] = u.generateRandomFieldElement(false)
+		rc[i] = u.generateRandomFieldElement(true)
 	}
 	for i := vecSize; i < vecSize+T; i++ {
-		rc[i] = u.generateRandomFieldElement(false)
+		rc[i] = u.generateRandomFieldElement(true)
 	}
 	return rc
 }
@@ -141,7 +141,9 @@ func (u *Util) round(r int) {
 	}
 }
 
-// Aij(y) = Mij X y + cij
+// Aij(y) =
+// |2I I|
+// |I 2I| X [Mij X y + cij]
 func (u *Util) linearLayer() {
 	u.matmul(&u.state1_)
 	u.matmul(&u.state2_)
@@ -250,6 +252,9 @@ func (u *Util) calculateRow(prevRow, firstRow []uint64) []uint64 {
 	return out
 }
 
+// this is an optimized implementation of
+// (2 1)(state1_)
+// (1 2)(state2_)
 func (u *Util) mix() {
 	for i := 0; i < T; i++ {
 		pastaP := big.NewInt(int64(u.modulus))

@@ -10,54 +10,17 @@ type Util struct {
 	bfvParams bfv.Parameters
 	encoder   bfv.Encoder
 	evaluator bfv.Evaluator
+	keygen    rlwe.KeyGenerator
+	secretKey rlwe.SecretKey
 }
 
-func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator) Util {
-	return Util{bfvParams, encoder, evaluator}
-}
-
-func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, sealParams SealParams) {
-	// todo(fedejinich) should also implement 'baby step gigant step'
-	matrixDim := pasta.T
-
-	if uint64(matrixDim*2) != sealParams.Slots && uint64(matrixDim*4) > sealParams.Slots {
-		panic("too little slots for matmul implementation!")
-	}
-
-	// todo(fedejinich) not sure about this (
-	// non-full-packed rotation preparation
-	if sealParams.Halfslots != uint64(matrixDim) {
-		stateRot := u.evaluator.RotateColumnsNew(state, matrixDim) // todo(fedejinich) i'm 80% sure this is not right
-		u.evaluator.Add(state, stateRot, state)
-	}
-
-	// diagonal method preparation
-	matrix := make([]rlwe.Plaintext, matrixDim)
-	for i := 0; i < matrixDim; i++ {
-		diag := make([]uint64, uint64(matrixDim)+sealParams.Halfslots)
-		for j := 0; j < matrixDim; j++ {
-			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
-			diag[uint64(j)+sealParams.Halfslots] = mat2[j][(j+matrixDim-i)%matrixDim]
-		}
-		row := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel()) // todo(fedejinich) not sure about MaxLevel
-		u.encoder.Encode(diag, row)
-		matrix = append(matrix, *row) // todo(fedejinich) is matrix updated?
-	}
-
-	// todo(fedejinich) not sure about degree and level
-	sum := state
-	u.evaluator.Mul(sum, &matrix[0], sum)
-	for i := 1; i < matrixDim; i++ {
-		u.evaluator.RotateColumns(state, -1, state) // todo(fedejinich) this is called 'rotate_rows' in SEAL
-		tmp := u.evaluator.MulNew(state, &matrix[i])
-		u.evaluator.Add(sum, tmp, sum)
-	}
-
-	state = sum
+func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator, keygen rlwe.KeyGenerator,
+	secretKey rlwe.SecretKey) Util {
+	return Util{bfvParams, encoder, evaluator, keygen, secretKey}
 }
 
 func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) {
-	roundConstants := bfv.NewPlaintext(u.bfvParams, state.Level()) // todo(fedejinich) not sure about Level
+	roundConstants := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel()) // todo(fedejinich) not sure about MaxLevel
 	u.encoder.Encode(rc, roundConstants)
 	u.evaluator.Add(state, roundConstants, state)
 }
@@ -74,19 +37,19 @@ func (u *Util) SboxCube(state *rlwe.Ciphertext) {
 	}
 }
 
-func (u *Util) SboxFeistel(state *rlwe.Ciphertext, sealParams SealParams) {
+func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) {
 	// rotate state
 	stateRot := u.evaluator.RotateColumnsNew(state, -1) // todo(fedejinich) this is called 'rotate_rows' in SEAL
 
 	// mask rotate state
 	mask := bfv.NewPlaintext(u.bfvParams, state.Level()) // todo(fedejinich) not sure about 'Level'
-	maskVec := make([]uint64, pasta.T+sealParams.Halfslots)
+	maskVec := make([]uint64, pasta.T+halfslots)
 	for i := range maskVec {
 		maskVec[i] = 1 // todo(fedejinich) is this ok?
 	}
 	maskVec[0] = 0
-	maskVec[sealParams.Halfslots] = 0
-	for i := uint64(pasta.T); i < sealParams.Halfslots; i++ {
+	maskVec[halfslots] = 0
+	for i := uint64(pasta.T); i < halfslots; i++ {
 		maskVec[i] = 0
 	}
 	u.encoder.Encode(maskVec, mask)
@@ -100,4 +63,35 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, sealParams SealParams) {
 
 	u.evaluator.Add(state, stateRot, state)
 	// state = x_1, x_1^2 + x_2, x_2^2 + x_3, x_3^2 + x_4, .... x_(t-1)^2 + x_t
+}
+
+func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.Ciphertext) {
+	// todo(fedejinich) not sure about maxLevel and DefaultScale
+	linearTransform := bfv.GenLinearTransform(u.encoder, sliceToMap(mat1), u.bfvParams.MaxLevel(),
+		u.bfvParams.DefaultScale())
+
+	rotations := linearTransform.Rotations()
+
+	evk := rlwe.NewEvaluationKeySet()
+	// todo(fedejinich) this is slow
+	for _, galEl := range u.bfvParams.GaloisElementsForRotations(rotations) {
+		evk.GaloisKeys[galEl] = u.keygen.GenGaloisKeyNew(galEl, &u.secretKey)
+	}
+
+	tmp := u.evaluator.
+		WithKey(evk).
+		LinearTransformNew(state, linearTransform)
+
+	*stateOut = tmp[0]
+}
+
+// todo(fedejinich) shouldn't use this, is non performant
+func sliceToMap(slice [][]uint64) map[int][]uint64 {
+	result := make(map[int][]uint64)
+
+	for idx, subSlice := range slice {
+		result[idx] = subSlice
+	}
+
+	return result
 }

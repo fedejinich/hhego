@@ -1,6 +1,7 @@
 package pasta
 
 import (
+	"hhego/util"
 	"math"
 	"math/rand"
 	"testing"
@@ -428,12 +429,12 @@ func testCaseEncryptDecrypt(t *testing.T, secretKey, plaintext, expectedCipherte
 	ciphertext := pasta3.Encrypt(plaintext)
 	decrypted := pasta3.Decrypt(expectedCiphertext)
 
-	if !equalSlices(decrypted, plaintext) {
+	if !util.EqualSlices(decrypted, plaintext) {
 		t.Errorf("different plaintexts. decrypted(%d), plaintext(%d)",
 			len(decrypted), len(plaintext))
 	}
 
-	if !equalSlices(ciphertext, expectedCiphertext) {
+	if !util.EqualSlices(ciphertext, expectedCiphertext) {
 		t.Errorf("different ciphertexts. ciphertext(%d), expectedCiphertext(%d)",
 			len(ciphertext), len(expectedCiphertext))
 	}
@@ -684,7 +685,7 @@ func testCaseUseCase(t *testing.T, secretKey []uint64, modulus, matrixSize uint6
 		}
 	}
 
-	if !equalSlices(vo, voP) {
+	if !util.EqualSlices(vo, voP) {
 		t.Errorf("plain:  %d", vo)
 		t.Errorf("cipher: %d", voP)
 	}
@@ -714,16 +715,4 @@ func square(output *[]uint64, input []uint64, modulus uint64) {
 			(*output)[i*size+j] = sum % modulus
 		}
 	}
-}
-
-func equalSlices(a, b []uint64) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

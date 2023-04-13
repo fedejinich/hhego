@@ -6,6 +6,7 @@ import (
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	hhegobfv "hhego/bfv"
 	"hhego/pasta"
+	"hhego/util"
 	"math/rand"
 	"testing"
 )
@@ -111,7 +112,6 @@ func TestPackedUseCase(t *testing.T) {
 func packedTest(t *testing.T, secretKey []uint64, plainMod, modDegree, secLevel, matrixSize uint64) {
 	fmt.Printf("Num matrices = %d\n", pasta.NumMatmulsSquares)
 	fmt.Printf("N = %d\n", matrixSize)
-	fmt.Print("Getting random elements...")
 
 	// random matrices
 	m := make([][][]uint64, pasta.NumMatmulsSquares)
@@ -135,29 +135,13 @@ func packedTest(t *testing.T, secretKey []uint64, plainMod, modDegree, secLevel,
 	}
 
 	// random input vector
-	vi := make([]uint64, matrixSize)
+	inputVector := make([]uint64, matrixSize)
 	for i := 0; i < int(matrixSize); i++ {
-		vi[i] = rand.Uint64() % plainMod
+		inputVector[i] = rand.Uint64() % plainMod
 	}
 
-	fmt.Println("Computing in plain...")
-
-	// todo(fedejinich) implement this
-	//for r := 0; r < NumMatmulsSquares; r++ {
-	//	Affine()
-	//	if !LastSquare && r != NumMatmulsSquares-1 {
-	//		Square()
-	//	}
-	//}
-
-	fmt.Println("...done")
-
-	fmt.Println("Encrypting input...")
-
 	pastaCipher := pasta.NewPasta(secretKey, plainMod, P)
-	ciph := pastaCipher.Encrypt(vi)
-
-	fmt.Println("... done")
+	ciph := pastaCipher.Encrypt(inputVector)
 
 	// todo(fedejinich) this will be refactored
 	pastaParams := hhegobfv.PastaParams{
@@ -165,35 +149,51 @@ func packedTest(t *testing.T, secretKey []uint64, plainMod, modDegree, secLevel,
 		CipherSize: int(P.CipherSize),
 		Modulus:    int(plainMod),
 	}
-	// todo(fedejinich) this will be refactored
-	sealParams := hhegobfv.SealParams{
-		// todo(fedejinich) hardcodeado hasta los huevos (pero de un caso de uso valido)
-		4369324368,
-		15021756563585537025,
+	bfvCipher, bfvEncoder, bfvParams := newBFVCipher(t, pastaParams)
+
+	// homomorphically encrypt secret key
+	skTmp := bfvEncoder.EncodeNew(secretKey, bfvParams.MaxLevel(), bfvParams.DefaultScale()) // todo(fedejinich) not sure about scale
+	ciphSec := bfvCipher.Encrypt(skTmp)                                                      // todo(fedejinich) not sure about MaxLevel
+
+	// transciphering from PASTA to BFV
+	decomp := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
+	transciphered := flatten(decomp)          // flatten into one bfv encrypted element
+
+	// homomorphically evaluation
+	// todo(fedejinich) implement this
+
+	// final decrypt
+	decryptedPlaintext := bfvCipher.Decrypt(transciphered)
+	decrypted := bfvCipher.Encoder.DecodeUintNew(decryptedPlaintext)
+
+	if util.EqualSlices(decrypted, inputVector) {
+		t.Errorf("decrypted a different vector")
 	}
-	bfvCipher, bfvEncoder, bfvParams := newBFVCipher(t, sealParams, pastaParams)
-
-	plaintext := bfvEncoder.EncodeNew(secretKey, bfvParams.MaxLevel(), bfvParams.DefaultScale()) // todo(fedejinich) not sure about scale
-	ciphSec := bfvCipher.Encrypt(plaintext)                                                      // todo(fedejinich) not sure about MaxLevel
-
-	bfvCipher.Decomp(ciph, ciphSec)
-
-	// TODO(fedejinich): This is not finished yet.
 }
 
-func newBFVCipher(t *testing.T, sealParams hhegobfv.SealParams, pastaParams hhegobfv.PastaParams) (hhegobfv.BFVCipher,
-	bfv.Encoder, bfv.Parameters) {
+func flatten(decomp []rlwe.Ciphertext) *rlwe.Ciphertext {
+	// todo(fedejinich) implement this
+	return nil
+}
+
+func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters) {
 	// BFV parameters (128 bit security)
 	bfvParams, err := bfv.NewParametersFromLiteral(bfv.PN12QP101pq) // post-quantum params
+	bfvSlots := uint64(32768)                                       // mod_degree, polynomial modulus degree of the encryption parameters // todo(fedejinich) can be improved
 	if err != nil {
 		t.Errorf("couldn't initialize bfvParams")
 	}
-	kgen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := kgen.GenKeyPairNew()
-	evaluationKeySet := rlwe.NewEvaluationKeySet()                // todo(fedejinich) this evaluation key set shoudl have rotation keys
+	keygen := bfv.NewKeyGenerator(bfvParams)
+	secretKey, _ := keygen.GenKeyPairNew()
+
+	// generating galois keys for automorphisms
+
+	//galoisKey := keygen.GenGaloisKeyNew()
+	evaluationKeySet := rlwe.NewEvaluationKeySet()                // todo(fedejinich) this evaluation key set shoudl have galois & rotation keys
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evaluationKeySet) // todo(fedejinich) not sure about evaluation evaluationKey
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, sealParams, bfvEvaluator, bfvEncoder, pastaParams) // todo(fedejinich) can also be encrypted with the PK
+	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams,
+		*keygen, *secretKey, bfvSlots, bfvSlots/2) // todo(fedejinich) can also be encrypted with the PK
 
 	return bfvCipher, bfvEncoder, bfvParams
 }

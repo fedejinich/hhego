@@ -14,7 +14,7 @@ type PastaParams struct {
 	Modulus    int
 }
 
-// SealParams todo(fedejinich) this is temporal, will be removed
+// SealParams todo(fedejinich) this is temporal, will be removed.
 type SealParams struct {
 	Halfslots uint64 // todo(fedejinich) this should be calcualted
 	Slots     uint64

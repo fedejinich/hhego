@@ -7,6 +7,7 @@ import (
 	hhegobfv "hhego/bfv"
 	"hhego/pasta"
 	"hhego/util"
+	"math"
 	"math/rand"
 	"testing"
 )
@@ -14,7 +15,7 @@ import (
 var P = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlainSize: pasta.PlaintextSize,
 	CipherSize: pasta.CiphertextSize, Rounds: 3}
 
-func TestPackedUseCase(t *testing.T) {
+func TestPackedUseCase1(t *testing.T) {
 	secretKey := []uint64{0x892f9ff42160c81, 0xa652a61d10eabf3, 0x76bb71c0ddc0c06,
 		0xcd4219dc5300904, 0xb555b02f174ea12, 0xaf3a4ea03c081fd,
 		0x2e5ca6dc0c3122a, 0x73c7bb66bee9643, 0x68568756417a3da,
@@ -101,15 +102,23 @@ func TestPackedUseCase(t *testing.T) {
 		0x749b40188817a03, 0x16b02668d56a1e8, 0xab13d13e5bda090,
 		0x183c5893ffc193b, 0xe912d72bb7f9e53, 0xa861731333ecb85,
 		0xca48bde9146c726}
+	plaintext := []uint64{0x00}
+	ciphertextExpected := []uint64{0x00}
 	plainMod := 65537
-	modDegree := 12
+	modDegree := 32768
 	secLevel := 128
 	matrixSize := 200
+	bsgN1 := 20
+	bsgN2 := 10
+	useBsGs := true
 
-	packedTest(t, secretKey, uint64(plainMod), uint64(modDegree), uint64(secLevel), uint64(matrixSize))
+	packedTest(t, secretKey, plaintext, ciphertextExpected, uint64(plainMod), uint64(modDegree), uint64(secLevel),
+		uint64(matrixSize), uint64(bsgN1), uint64(bsgN2), useBsGs)
 }
 
-func packedTest(t *testing.T, secretKey []uint64, plainMod, modDegree, secLevel, matrixSize uint64) {
+func packedTest(t *testing.T, secretKey, plaintext, ciphertextExpected []uint64, plainMod, modDegree, secLevel,
+	matrixSize, bsgN1, bsgN2 uint64, useBsGs bool) {
+
 	fmt.Printf("Num matrices = %d\n", pasta.NumMatmulsSquares)
 	fmt.Printf("N = %d\n", matrixSize)
 
@@ -149,7 +158,8 @@ func packedTest(t *testing.T, secretKey []uint64, plainMod, modDegree, secLevel,
 		CipherSize: int(P.CipherSize),
 		Modulus:    int(plainMod),
 	}
-	bfvCipher, bfvEncoder, bfvParams := newBFVCipher(t, pastaParams)
+	bfvCipher, bfvEncoder, bfvParams := newBFVCipher(t, pastaParams, modDegree, secLevel,
+		secLevel, matrixSize, bsgN1, bsgN2, useBsGs)
 
 	// homomorphically encrypt secret key
 	skTmp := bfvEncoder.EncodeNew(secretKey, bfvParams.MaxLevel(), bfvParams.DefaultScale()) // todo(fedejinich) not sure about scale
@@ -157,7 +167,8 @@ func packedTest(t *testing.T, secretKey []uint64, plainMod, modDegree, secLevel,
 
 	// transciphering from PASTA to BFV
 	decomp := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
-	transciphered := flatten(decomp)          // flatten into one bfv encrypted element
+	// postprocessing todo(fedejinich) implement this (masking stuff)
+	transciphered := flatten(decomp) // flatten into one bfv encrypted element
 
 	// homomorphically evaluation
 	// todo(fedejinich) implement this
@@ -176,24 +187,105 @@ func flatten(decomp []rlwe.Ciphertext) *rlwe.Ciphertext {
 	return nil
 }
 
-func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters) {
+func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree uint64, level uint64, plainSize uint64,
+	matrixSize uint64, bsGsN1, bsGsN2 uint64, useBsGs bool) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters) {
+
+	var params bfv.ParametersLiteral
+
+	if degree == uint64(math.Pow(2, 15)) {
+		fmt.Println("polynomial degree = 2^15 (32768)")
+		params = bfv.PN15QP827pq // post quantum params with LogN = 2^15
+		//params = bfv.PN15QP880 // params with LogN = 2^15, non post quantum
+		//params = bfv.PN11QP54 // params with LogN = 2^11, non post quantum
+		//params = bfv.PN14QP438 // params with LogN = 2^14, non post quantum
+	} else {
+		t.Errorf("polynomial degree not supported (degree)")
+	}
+
 	// BFV parameters (128 bit security)
-	bfvParams, err := bfv.NewParametersFromLiteral(bfv.PN12QP101pq) // post-quantum params
-	bfvSlots := uint64(32768)                                       // mod_degree, polynomial modulus degree of the encryption parameters // todo(fedejinich) can be improved
+	bfvParams, err := bfv.NewParametersFromLiteral(params) // post-quantum params
+	bfvSlots := degree                                     // mod_degree, polynomial modulus degree of the encryption parameters // todo(fedejinich) can be improved
 	if err != nil {
 		t.Errorf("couldn't initialize bfvParams")
 	}
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	secretKey, _ := keygen.GenKeyPairNew()
-
-	// generating galois keys for automorphisms
-
-	//galoisKey := keygen.GenGaloisKeyNew()
-	evaluationKeySet := rlwe.NewEvaluationKeySet()                // todo(fedejinich) this evaluation key set shoudl have galois & rotation keys
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evaluationKeySet) // todo(fedejinich) not sure about evaluation evaluationKey
+	evks := genEvaluationKeySet(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, evks) // todo(fedejinich) not sure about evaluation evaluationKey
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams,
 		*keygen, *secretKey, bfvSlots, bfvSlots/2) // todo(fedejinich) can also be encrypted with the PK
 
 	return bfvCipher, bfvEncoder, bfvParams
+}
+
+// genEvaluationKeySet generating galois keys for automorphisms (rotations)
+func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64, bfvSlots uint64) *rlwe.EvaluationKeySet {
+	rem := matrixSize % plainSize
+	numBlock := int64(matrixSize / plainSize)
+	if rem > 0 {
+		numBlock++ //
+	}
+	var flattenGks []int
+	for i := int64(1); i < numBlock; i++ {
+		flattenGks = append(flattenGks, -int(i*int64(plainSize)))
+	}
+
+	var gkIndices []int64
+	gkIndices = addGkIndices(gkIndices, degree, useBsGs, bsGsN2, bsGsN1)
+	// add flatten gks
+	for i := 0; i < len(flattenGks); i++ {
+		gkIndices = append(gkIndices, int64(flattenGks[i]))
+	}
+
+	if useBsGs {
+		addBsGsIndices(bsGsN1, bsGsN2, gkIndices, bfvSlots)
+	} else {
+		addDiagonalIndices(matrixSize, gkIndices, bfvSlots)
+	}
+
+	evks := rlwe.NewEvaluationKeySet()
+	evks.GaloisKeys = genGK(gkIndices) // create galois key
+
+	return evks
+}
+
+func genGK(indices []int64) map[uint64]*rlwe.GaloisKey {
+	// todo(fedejinich) implement this
+	return nil
+}
+
+func addGkIndices(gkIndices []int64, degree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64) []int64 {
+	gkIndices = append(gkIndices, 0)
+	gkIndices = append(gkIndices, -1)
+	if pasta.T*2 != degree {
+		gkIndices = append(gkIndices, pasta.T)
+	}
+	if useBsGs {
+		for k := uint64(1); k < bsGsN2; k++ {
+			gkIndices = append(gkIndices, int64(-k*bsGsN1))
+		}
+	}
+	return gkIndices
+}
+
+func addBsGsIndices(n1 uint64, n2 uint64, gkIndices []int64, slots uint64) {
+	mul := n1 * n2
+	addDiagonalIndices(mul, gkIndices, slots)
+
+	if n1 == 1 || n2 == 1 {
+		return
+	}
+
+	//var gkIndices []uint64
+	for k := uint64(1); k < n2; k++ {
+		gkIndices = append(gkIndices, int64(k*n1))
+	}
+}
+
+func addDiagonalIndices(matrixSize uint64, gkIndices []int64, slots uint64) {
+	if matrixSize*2 != slots {
+		gkIndices = append(gkIndices, -int64(matrixSize))
+	}
+	gkIndices = append(gkIndices, 1)
 }

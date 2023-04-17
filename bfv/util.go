@@ -67,8 +67,8 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) {
 
 func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.Ciphertext) {
 	// todo(fedejinich) not sure about maxLevel and DefaultScale
-	linearTransform := bfv.GenLinearTransform(u.encoder, sliceToMap(mat1), u.bfvParams.MaxLevel(),
-		u.bfvParams.DefaultScale())
+	linearTransform := bfv.GenLinearTransformBSGS(u.encoder, sliceToMap(mat1), u.bfvParams.MaxLevel(),
+		u.bfvParams.DefaultScale(), 2.0)
 
 	rotations := linearTransform.Rotations()
 

@@ -264,7 +264,7 @@ func genGK(indices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secr
 	for _, galEl := range params.GaloisElementsForRotations(indices) {
 		evk.GaloisKeys[galEl] = keygen.GenGaloisKeyNew(galEl, secretKey)
 	}
-
+	// todo(fedejinich) in SEAL they use gkIndex = 0 to represent a column rotation (row in lattigo)
 	// set row rotation galois key
 	evk.GaloisKeys[params.GaloisElementForRowRotation()] =
 		keygen.GenGaloisKeyNew(params.GaloisElementForRowRotation(), secretKey)

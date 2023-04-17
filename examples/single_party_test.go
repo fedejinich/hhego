@@ -168,23 +168,30 @@ func packedTest(t *testing.T, secretKey, plaintext, ciphertextExpected []uint64,
 	// transciphering from PASTA to BFV
 	decomp := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
 	// postprocessing todo(fedejinich) implement this (masking stuff)
-	transciphered := flatten(decomp) // flatten into one bfv encrypted element
+
+	transciphered := flatten(decomp, bfvCipher.Evaluator, pasta.PlaintextSize) // flatten into one bfv encrypted element
 
 	// homomorphically evaluation
 	// todo(fedejinich) implement this
 
 	// final decrypt
 	decryptedPlaintext := bfvCipher.Decrypt(transciphered)
-	decrypted := bfvCipher.Encoder.DecodeUintNew(decryptedPlaintext)
-
-	if util.EqualSlices(decrypted, inputVector) {
+	dec := bfvCipher.Encoder.DecodeUintNew(decryptedPlaintext)
+	decrypted := dec[0:200]
+	if !util.EqualSlices(decrypted, inputVector) {
 		t.Errorf("decrypted a different vector")
 	}
 }
 
-func flatten(decomp []rlwe.Ciphertext) *rlwe.Ciphertext {
+func flatten(decomp []rlwe.Ciphertext, evaluator bfv.Evaluator, plainSize int) *rlwe.Ciphertext {
 	// todo(fedejinich) implement this
-	return nil
+	ciphertext := decomp[0]
+	for i := 1; i < len(decomp); i++ {
+		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * plainSize))
+		evaluator.Add(&ciphertext, tmp, &ciphertext)
+	}
+
+	return &ciphertext
 }
 
 func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree uint64, level uint64, plainSize uint64,
@@ -210,7 +217,8 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree uint64,
 	}
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	secretKey, _ := keygen.GenKeyPairNew()
-	evks := genEvaluationKeySet(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots)
+	// generate evaluation keys (galois keys) for rotations
+	evks := genEvaluationKeySet(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots, bfvParams.Parameters, *keygen, secretKey)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evks) // todo(fedejinich) not sure about evaluation evaluationKey
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams,
@@ -220,7 +228,9 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree uint64,
 }
 
 // genEvaluationKeySet generating galois keys for automorphisms (rotations)
-func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64, bfvSlots uint64) *rlwe.EvaluationKeySet {
+func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, useBsGs bool, bsGsN2 uint64,
+	bsGsN1 uint64, bfvSlots uint64, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) *rlwe.EvaluationKeySet {
+
 	rem := matrixSize % plainSize
 	numBlock := int64(matrixSize / plainSize)
 	if rem > 0 {
@@ -231,45 +241,57 @@ func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, use
 		flattenGks = append(flattenGks, -int(i*int64(plainSize)))
 	}
 
-	var gkIndices []int64
-	gkIndices = addGkIndices(gkIndices, degree, useBsGs, bsGsN2, bsGsN1)
+	var gkIndices []int
+	gkIndices = addGkIndices(gkIndices, degree, useBsGs)
 	// add flatten gks
 	for i := 0; i < len(flattenGks); i++ {
-		gkIndices = append(gkIndices, int64(flattenGks[i]))
+		gkIndices = append(gkIndices, flattenGks[i])
 	}
 
 	if useBsGs {
-		addBsGsIndices(bsGsN1, bsGsN2, gkIndices, bfvSlots)
+		addBsGsIndices(bsGsN1, bsGsN2, &gkIndices, bfvSlots)
 	} else {
-		addDiagonalIndices(matrixSize, gkIndices, bfvSlots)
+		addDiagonalIndices(matrixSize, &gkIndices, bfvSlots)
 	}
 
-	evks := rlwe.NewEvaluationKeySet()
-	evks.GaloisKeys = genGK(gkIndices) // create galois key
-
-	return evks
+	return genGK(gkIndices, params, keygen, secretKey, plainSize) // create galois key
 }
 
-func genGK(indices []int64) map[uint64]*rlwe.GaloisKey {
-	// todo(fedejinich) implement this
-	return nil
+func genGK(indices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey, plainSize uint64) *rlwe.EvaluationKeySet {
+	evk := rlwe.NewEvaluationKeySet()
+
+	// set column rotation galois keys
+	for _, galEl := range params.GaloisElementsForRotations(indices) {
+		evk.GaloisKeys[galEl] = keygen.GenGaloisKeyNew(galEl, secretKey)
+	}
+
+	// set row rotation galois key
+	evk.GaloisKeys[params.GaloisElementForRowRotation()] =
+		keygen.GenGaloisKeyNew(params.GaloisElementForRowRotation(), secretKey)
+
+	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
+
+	return evk // todo(fedejinich) not sure about how i constructed the key set (but i'm pretty sure it's close to this)
 }
 
-func addGkIndices(gkIndices []int64, degree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64) []int64 {
+const BSGS_N1 = 16
+const BSGS_N2 = 8
+
+func addGkIndices(gkIndices []int, degree uint64, useBsGs bool) []int {
 	gkIndices = append(gkIndices, 0)
 	gkIndices = append(gkIndices, -1)
 	if pasta.T*2 != degree {
 		gkIndices = append(gkIndices, pasta.T)
 	}
 	if useBsGs {
-		for k := uint64(1); k < bsGsN2; k++ {
-			gkIndices = append(gkIndices, int64(-k*bsGsN1))
+		for k := uint64(1); k < BSGS_N2; k++ {
+			gkIndices = append(gkIndices, int(-k*BSGS_N1))
 		}
 	}
 	return gkIndices
 }
 
-func addBsGsIndices(n1 uint64, n2 uint64, gkIndices []int64, slots uint64) {
+func addBsGsIndices(n1 uint64, n2 uint64, gkIndices *[]int, slots uint64) {
 	mul := n1 * n2
 	addDiagonalIndices(mul, gkIndices, slots)
 
@@ -277,15 +299,14 @@ func addBsGsIndices(n1 uint64, n2 uint64, gkIndices []int64, slots uint64) {
 		return
 	}
 
-	//var gkIndices []uint64
 	for k := uint64(1); k < n2; k++ {
-		gkIndices = append(gkIndices, int64(k*n1))
+		*gkIndices = append(*gkIndices, int(k*n1))
 	}
 }
 
-func addDiagonalIndices(matrixSize uint64, gkIndices []int64, slots uint64) {
+func addDiagonalIndices(matrixSize uint64, gkIndices *[]int, slots uint64) {
 	if matrixSize*2 != slots {
-		gkIndices = append(gkIndices, -int64(matrixSize))
+		*gkIndices = append(*gkIndices, -int(matrixSize))
 	}
-	gkIndices = append(gkIndices, 1)
+	*gkIndices = append(*gkIndices, 1)
 }

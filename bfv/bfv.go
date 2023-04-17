@@ -1,6 +1,7 @@
 package bfv
 
 import (
+	"fmt"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"hhego/pasta"
@@ -71,8 +72,11 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		pastaUtil.InitShake(uint64(nonce), uint64(b))
 		state := secretKey
 
+		fmt.Printf("block %d\n", b)
+
 		// todo(fedejinich) refactor this into (...) = pastaUtil.round(...)
-		for r := 1; r < bfvCipher.pastaParams.Rounds; r++ {
+		for r := 1; r <= bfvCipher.pastaParams.Rounds; r++ {
+			fmt.Printf("round %d\n", r)
 			// todo(fedejinich) can be refactored into (mat1, mat2, rc) = pastaUtil.InitParams()
 			mat1 := pastaUtil.RandomMatrix()
 			mat2 := pastaUtil.RandomMatrix()
@@ -93,6 +97,8 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 			//printNoise(state)
 		}
+
+		fmt.Println("final add")
 
 		// todo(fedejinich) refactor this into (...) = pastaUtil.round(...)
 		mat1 := pastaUtil.RandomMatrix()
@@ -118,6 +124,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		bfvCipher.Evaluator.Add(state, plaintext, state) // todo(fedejinich) ugly
 		result[b] = *state
 	}
+
 	return result
 }
 

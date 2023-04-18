@@ -131,20 +131,6 @@ func (bfvCipher *BFVCipher) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext
 	return bfvCipher.decryptor.DecryptNew(ciphertext)
 }
 
-func (bfvCipher *BFVCipher) AddGkIndices() {
-	bfvCipher.gkIndices = append(bfvCipher.gkIndices, 0)
-	bfvCipher.gkIndices = append(bfvCipher.gkIndices, -1)
-	if pasta.T*2 != bfvCipher.slots {
-		bfvCipher.gkIndices = append(bfvCipher.gkIndices, pasta.T)
-	}
-	// todo(fedejinich) add this indices
-	//if bfvCipher.useBsgs {
-	//	for k := uint64(1); k < BSGS_N2; k++ {
-	//		bfvCipher.gkIndices = append(bfvCipher.gkIndices, -int(k*BSGS_N1))
-	//	}
-	//}
-}
-
 func (bfvCipher *BFVCipher) flatten(decomp []rlwe.Ciphertext, plainSize int) rlwe.Ciphertext {
 	// todo(fedejinich) implement this
 	ciphertext := decomp[0]
@@ -154,4 +140,11 @@ func (bfvCipher *BFVCipher) flatten(decomp []rlwe.Ciphertext, plainSize int) rlw
 	}
 
 	return ciphertext
+}
+
+func (bfvCipher *BFVCipher) DecryptPacked(ciphertext *rlwe.Ciphertext, matrixSize uint64) []uint64 {
+	plaintext := bfvCipher.decryptor.DecryptNew(ciphertext)
+	dec := bfvCipher.Encoder.DecodeUintNew(plaintext)
+
+	return dec[0 : matrixSize-1]
 }

@@ -28,7 +28,7 @@ type BFVCipher struct {
 	Encoder     bfv.Encoder
 	pastaParams *PastaParams
 	bfvParams   bfv.Parameters
-	keygen      rlwe.KeyGenerator
+	Keygen      rlwe.KeyGenerator
 	secretKey   rlwe.SecretKey
 	slots       uint64 // determined by the polynomial modulus degree of the encryption parameters
 	halfslots   uint64 // given by slots // todo(fedejinich) remove this field, it's unnecessary
@@ -55,8 +55,7 @@ func (bfvCipher *BFVCipher) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext 
 	return bfvCipher.encryptor.EncryptNew(plaintext)
 }
 
-// Decomp
-func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) rlwe.Ciphertext {
+func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) []rlwe.Ciphertext {
 	nonce := 123456789
 	size := len(encryptedMessage)
 
@@ -64,7 +63,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 	// todo(fedejinich) not sure about secretKey
 	pastaUtil := pasta.NewUtil(secretKey.Value[0].Buff, uint64(bfvCipher.pastaParams.Modulus), bfvCipher.pastaParams.Rounds)
-	bfvUtil := NewUtil(bfvCipher.bfvParams, bfvCipher.Encoder, bfvCipher.Evaluator, bfvCipher.keygen,
+	bfvUtil := NewUtil(bfvCipher.bfvParams, bfvCipher.Encoder, bfvCipher.Evaluator, bfvCipher.Keygen,
 		bfvCipher.secretKey)
 	result := make([]rlwe.Ciphertext, int(numBlock))
 
@@ -125,7 +124,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		result[b] = *state
 	}
 	// todo(fedejinich) shoudl pasta.PlaintextSize be parameterizable?
-	return bfvCipher.flatten(result, pasta.PlaintextSize) // flatten into one bfv encrypted element
+	return result
 }
 
 func (bfvCipher *BFVCipher) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {

@@ -158,7 +158,7 @@ func packedTest(t *testing.T, secretKey, plaintext, ciphertextExpected []uint64,
 		CipherSize: int(P.CipherSize),
 		Modulus:    int(plainMod),
 	}
-	bfvCipher, bfvEncoder, bfvParams := newBFVCipher(t, pastaParams, modDegree, secLevel,
+	bfvCipher, bfvEncoder, bfvParams, bfvUtil, rem := newBFVCipher(t, pastaParams, modDegree, secLevel,
 		secLevel, matrixSize, bsgN1, bsgN2, useBsGs)
 
 	// homomorphically encrypt secret key
@@ -166,8 +166,18 @@ func packedTest(t *testing.T, secretKey, plaintext, ciphertextExpected []uint64,
 	ciphSec := bfvCipher.Encrypt(skTmp)                                                      // todo(fedejinich) not sure about MaxLevel
 
 	// transciphering from PASTA to BFV
-	transciphered := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
-	// postprocessing todo(fedejinich) implement this (masking stuff)
+	decomp := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
+
+	// postprocessing
+	if rem != 0 {
+		mask := make([]uint64, rem) // create a 1s mask
+		for i := range mask {
+			mask[i] = 1
+		}
+		decomp = bfvUtil.Mask(decomp, mask, bfvParams, bfvEncoder, bfvCipher.Evaluator)
+	}
+
+	transciphered := bfvUtil.Flatten(decomp, pasta.PlaintextSize, bfvCipher.Evaluator)
 
 	// homomorphically evaluation
 	// todo(fedejinich) implement this
@@ -181,8 +191,8 @@ func packedTest(t *testing.T, secretKey, plaintext, ciphertextExpected []uint64,
 	}
 }
 
-func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree uint64, level uint64, plainSize uint64,
-	matrixSize uint64, bsGsN1, bsGsN2 uint64, useBsGs bool) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters) {
+func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree, level, plainSize, matrixSize, bsGsN1,
+	bsGsN2 uint64, useBsGs bool) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters, hhegobfv.Util, uint64) {
 
 	var params bfv.ParametersLiteral
 
@@ -205,18 +215,18 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree uint64,
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	secretKey, _ := keygen.GenKeyPairNew()
 	// generate evaluation keys (galois keys) for rotations
-	evks := genEvaluationKeySet(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots, bfvParams.Parameters, *keygen, secretKey)
+	evks, rem := genEvaluationKeySet(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots, bfvParams.Parameters, *keygen, secretKey)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evks) // todo(fedejinich) not sure about evaluation evaluationKey
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams,
 		*keygen, *secretKey, bfvSlots, bfvSlots/2) // todo(fedejinich) can also be encrypted with the PK
 
-	return bfvCipher, bfvEncoder, bfvParams
+	return bfvCipher, bfvEncoder, bfvParams, hhegobfv.NewUtilByCipher(bfvCipher, *secretKey), rem
 }
 
 // genEvaluationKeySet generating galois keys for automorphisms (rotations)
-func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, useBsGs bool, bsGsN2 uint64,
-	bsGsN1 uint64, bfvSlots uint64, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) *rlwe.EvaluationKeySet {
+func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64,
+	bfvSlots uint64, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) (*rlwe.EvaluationKeySet, uint64) {
 
 	rem := matrixSize % plainSize
 	numBlock := int64(matrixSize / plainSize)
@@ -241,14 +251,14 @@ func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, use
 		addDiagonalIndices(matrixSize, &gkIndices, bfvSlots)
 	}
 
-	return genGK(gkIndices, params, keygen, secretKey, plainSize) // create galois key
+	return genGK(gkIndices, params, keygen, secretKey), rem // create galois key
 }
 
-func genGK(indices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey, plainSize uint64) *rlwe.EvaluationKeySet {
+func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) *rlwe.EvaluationKeySet {
 	evk := rlwe.NewEvaluationKeySet()
 
 	// set column rotation galois keys
-	for _, galEl := range params.GaloisElementsForRotations(indices) {
+	for _, galEl := range params.GaloisElementsForRotations(gkIndices) {
 		evk.GaloisKeys[galEl] = keygen.GenGaloisKeyNew(galEl, secretKey)
 	}
 	// todo(fedejinich) in SEAL they use gkIndex = 0 to represent a column rotation (row in lattigo)
@@ -258,11 +268,12 @@ func genGK(indices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secr
 
 	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
 
-	return evk // todo(fedejinich) not sure about how i constructed the key set (but i'm pretty sure it's close to this)
+	return evk
 }
 
-const BSGS_N1 = 16
-const BSGS_N2 = 8
+// todo(fedejinich) this constants shouldn't be here
+const BsgsN1 = 16
+const BsgsN2 = 8
 
 func addGkIndices(gkIndices []int, degree uint64, useBsGs bool) []int {
 	gkIndices = append(gkIndices, 0)
@@ -271,8 +282,8 @@ func addGkIndices(gkIndices []int, degree uint64, useBsGs bool) []int {
 		gkIndices = append(gkIndices, pasta.T)
 	}
 	if useBsGs {
-		for k := uint64(1); k < BSGS_N2; k++ {
-			gkIndices = append(gkIndices, int(-k*BSGS_N1))
+		for k := uint64(1); k < BsgsN2; k++ {
+			gkIndices = append(gkIndices, int(-k*BsgsN1))
 		}
 	}
 	return gkIndices

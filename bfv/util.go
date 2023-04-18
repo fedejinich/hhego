@@ -19,6 +19,11 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 	return Util{bfvParams, encoder, evaluator, keygen, secretKey}
 }
 
+func NewUtilByCipher(bfvCipher BFVCipher, secretKey rlwe.SecretKey) Util {
+	return NewUtil(bfvCipher.bfvParams, bfvCipher.Encoder,
+		bfvCipher.Evaluator, bfvCipher.Keygen, secretKey)
+}
+
 func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) {
 	roundConstants := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel()) // todo(fedejinich) not sure about MaxLevel
 	u.encoder.Encode(rc, roundConstants)
@@ -83,6 +88,30 @@ func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.C
 		LinearTransformNew(state, linearTransform)
 
 	*stateOut = tmp[0]
+}
+
+func (u *Util) Flatten(decomp []rlwe.Ciphertext, plainSize int, evaluator bfv.Evaluator) rlwe.Ciphertext {
+	// todo(fedejinich) implement this
+	ciphertext := decomp[0]
+	for i := 1; i < len(decomp); i++ {
+		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * plainSize))
+		evaluator.Add(&ciphertext, tmp, &ciphertext)
+	}
+
+	return ciphertext
+}
+
+func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator) []rlwe.Ciphertext {
+	lastIndex := len(decomp) - 1
+	last := decomp[lastIndex]
+	plaintext := bfv.NewPlaintext(params, params.MaxLevel()) // todo(fedejinich) not sure about MaxLevel
+	encoder.Encode(mask, plaintext)
+
+	evaluator.Mul(&last, plaintext, &last)
+
+	decomp[lastIndex] = last // todo(fedejinich) isn't this unnecessary?
+
+	return decomp
 }
 
 // todo(fedejinich) shouldn't use this, is non performant

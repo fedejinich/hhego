@@ -146,5 +146,5 @@ func (bfvCipher *BFVCipher) DecryptPacked(ciphertext *rlwe.Ciphertext, matrixSiz
 	plaintext := bfvCipher.decryptor.DecryptNew(ciphertext)
 	dec := bfvCipher.Encoder.DecodeUintNew(plaintext)
 
-	return dec[0 : matrixSize-1]
+	return dec[0:matrixSize]
 }

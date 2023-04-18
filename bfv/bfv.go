@@ -56,7 +56,7 @@ func (bfvCipher *BFVCipher) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext 
 }
 
 // Decomp
-func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) []rlwe.Ciphertext {
+func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) rlwe.Ciphertext {
 	nonce := 123456789
 	size := len(encryptedMessage)
 
@@ -82,8 +82,8 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 			mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(bfvCipher.halfslots) // todo(fedejinich) this should have t size as tXt random matrix, right?
 
-			// todo(fedejinich) in the c++ impl, everything it's done in just ONE big matrix,
-			//   here we split it in two steps (will be refactored)
+			// todo(fedejinich) we can do a huge optimization here: we can do everything it's done in just ONE big matrix,
+			//   instead of splitting into two steps
 			bfvUtil.Matmul(state, mat1, &state)
 			bfvUtil.Matmul(state, mat2, &state)
 
@@ -124,8 +124,8 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		bfvCipher.Evaluator.Add(state, plaintext, state) // todo(fedejinich) ugly
 		result[b] = *state
 	}
-
-	return result
+	// todo(fedejinich) shoudl pasta.PlaintextSize be parameterizable?
+	return bfvCipher.flatten(result, pasta.PlaintextSize) // flatten into one bfv encrypted element
 }
 
 func (bfvCipher *BFVCipher) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {
@@ -144,4 +144,15 @@ func (bfvCipher *BFVCipher) AddGkIndices() {
 	//		bfvCipher.gkIndices = append(bfvCipher.gkIndices, -int(k*BSGS_N1))
 	//	}
 	//}
+}
+
+func (bfvCipher *BFVCipher) flatten(decomp []rlwe.Ciphertext, plainSize int) rlwe.Ciphertext {
+	// todo(fedejinich) implement this
+	ciphertext := decomp[0]
+	for i := 1; i < len(decomp); i++ {
+		tmp := bfvCipher.Evaluator.RotateColumnsNew(&decomp[i], -(i * plainSize))
+		bfvCipher.Evaluator.Add(&ciphertext, tmp, &ciphertext)
+	}
+
+	return ciphertext
 }

@@ -166,32 +166,19 @@ func packedTest(t *testing.T, secretKey, plaintext, ciphertextExpected []uint64,
 	ciphSec := bfvCipher.Encrypt(skTmp)                                                      // todo(fedejinich) not sure about MaxLevel
 
 	// transciphering from PASTA to BFV
-	decomp := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
+	transciphered := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
 	// postprocessing todo(fedejinich) implement this (masking stuff)
-
-	transciphered := flatten(decomp, bfvCipher.Evaluator, pasta.PlaintextSize) // flatten into one bfv encrypted element
 
 	// homomorphically evaluation
 	// todo(fedejinich) implement this
 
 	// final decrypt
-	decryptedPlaintext := bfvCipher.Decrypt(transciphered)
+	decryptedPlaintext := bfvCipher.Decrypt(&transciphered)
 	dec := bfvCipher.Encoder.DecodeUintNew(decryptedPlaintext)
 	decrypted := dec[0:200]
 	if !util.EqualSlices(decrypted, inputVector) {
 		t.Errorf("decrypted a different vector")
 	}
-}
-
-func flatten(decomp []rlwe.Ciphertext, evaluator bfv.Evaluator, plainSize int) *rlwe.Ciphertext {
-	// todo(fedejinich) implement this
-	ciphertext := decomp[0]
-	for i := 1; i < len(decomp); i++ {
-		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * plainSize))
-		evaluator.Add(&ciphertext, tmp, &ciphertext)
-	}
-
-	return &ciphertext
 }
 
 func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree uint64, level uint64, plainSize uint64,

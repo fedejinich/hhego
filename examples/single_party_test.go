@@ -312,6 +312,7 @@ func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, use
 
 	var gkIndices []int
 	gkIndices = addGkIndices(gkIndices, degree, useBsGs)
+
 	// add flatten gks
 	for i := 0; i < len(flattenGks); i++ {
 		gkIndices = append(gkIndices, flattenGks[i])
@@ -331,6 +332,9 @@ func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, se
 
 	galEls := make([]uint64, len(gkIndices))
 	for i, rot := range gkIndices {
+		// todo(fedejinich) in SEAL they use gkIndex = 0 to represent a column rotation (row in lattigo)
+		//    i guess we should fix it by generating the right gk for 0 elements
+		//    THIS IS THE FIX
 		if rot == 0 {
 			galEls[i] = params.GaloisElementForRowRotation()
 		} else {
@@ -343,8 +347,7 @@ func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, se
 	for _, galEl := range galEls {
 		evk.GaloisKeys[galEl] = keygen.GenGaloisKeyNew(galEl, secretKey)
 	}
-	// todo(fedejinich) in SEAL they use gkIndex = 0 to represent a column rotation (row in lattigo)
-	//    i guess we should fix it by generating the right gk for 0 elements
+
 	// set row rotation galois key
 	//evk.GaloisKeys[params.GaloisElementForRowRotation()] =
 	//	keygen.GenGaloisKeyNew(params.GaloisElementForRowRotation(), secretKey)

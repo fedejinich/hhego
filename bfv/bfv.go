@@ -148,3 +148,21 @@ func (bfvCipher *BFVCipher) DecryptPacked(ciphertext *rlwe.Ciphertext, matrixSiz
 
 	return dec[0:matrixSize]
 }
+
+func (bfvCipher *BFVCipher) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
+	plaintext := bfv.NewPlaintext(bfvCipher.bfvParams, bfvCipher.bfvParams.MaxLevel()) // todo(fedejinich) not sure about maxlevel
+	keyTmp := make([]uint64, bfvCipher.Halfslots()+pasta.T)
+
+	for i := uint64(0); i < pasta.T; i++ {
+		keyTmp[i] = secretKey[i]
+		keyTmp[i+bfvCipher.Halfslots()] = secretKey[i+pasta.T]
+	}
+	bfvCipher.Encoder.Encode(keyTmp, plaintext)
+	encrypt := bfvCipher.Encrypt(plaintext) // todo(fedejinich) refactor this
+
+	return encrypt
+}
+
+func (bfvCipher *BFVCipher) Halfslots() uint64 {
+	return bfvCipher.halfslots // todo(fedejinich) it should be calcualted, refactor this ugly thing
+}

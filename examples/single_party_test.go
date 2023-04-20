@@ -271,6 +271,11 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree, level,
 	if degree == uint64(math.Pow(2, 15)) {
 		fmt.Println("polynomial degree = 2^15 (32768)")
 		params = bfv.PN15QP827pq // post quantum params with LogN = 2^15
+		params.Q = []uint64{0x7fffffffe90001, 0x7fffffffbf0001, 0x7fffffffbd0001, 0x7fffffffba0001, 0x7fffffffaa0001,
+			0x7fffffffa50001, 0x7fffffff9f0001, 0x7fffffff7e0001, 0x7fffffff770001, 0x7fffffff380001,
+			0x7fffffff330001, 0x7fffffff2d0001, 0x7fffffff170001, 0x7fffffff150001, 0x7ffffffef00001,
+			0xfffffffff70001} // same SEAL coeff_modulus
+		// todo(fedejinich) still need to disable NTT
 	} else if degree == uint64(math.Pow(2, 12)) {
 		fmt.Println("polynomial degree = 2^12 (4096)")
 		params = bfv.PN12QP101pq // params with LogN = 2^12, post quantum
@@ -357,10 +362,6 @@ func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, se
 	return evk
 }
 
-// todo(fedejinich) this constants shouldn't be here
-const BsgsN1 = 16
-const BsgsN2 = 8
-
 func addGkIndices(gkIndices []int, degree uint64, useBsGs bool) []int {
 	gkIndices = append(gkIndices, 0)
 	gkIndices = append(gkIndices, -1)
@@ -368,8 +369,8 @@ func addGkIndices(gkIndices []int, degree uint64, useBsGs bool) []int {
 		gkIndices = append(gkIndices, pasta.T)
 	}
 	if useBsGs {
-		for k := uint64(1); k < BsgsN2; k++ {
-			gkIndices = append(gkIndices, int(-k*BsgsN1))
+		for k := uint64(1); k < hhegobfv.BsgsN2; k++ {
+			gkIndices = append(gkIndices, int(-k*hhegobfv.BsgsN1))
 		}
 	}
 	return gkIndices

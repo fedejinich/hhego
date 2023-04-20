@@ -83,8 +83,9 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 			// todo(fedejinich) we can do a huge optimization here: we can do everything it's done in just ONE big matrix,
 			//   instead of splitting into two steps
-			bfvUtil.Matmul(state, mat1, &state)
-			bfvUtil.Matmul(state, mat2, &state)
+			//bfvUtil.Matmul(state, mat1, &state)
+			//bfvUtil.Matmul(state, mat2, &state)
+			bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots, &state)
 
 			bfvUtil.AddRc(state, rc)
 			bfvUtil.Mix(state)
@@ -106,8 +107,9 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 		// todo(fedejinich) in the c++ impl, everything it's done in just ONE big matrix,
 		//   here we split it in two steps (will be refactored)
-		bfvUtil.Matmul(state, mat1, &state)
-		bfvUtil.Matmul(state, mat2, &state)
+		//bfvUtil.Matmul(state, mat1, &state)
+		//bfvUtil.Matmul(state, mat2, &state)
+		bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots, &state)
 
 		bfvUtil.AddRc(state, rc)
 		bfvUtil.Mix(state)

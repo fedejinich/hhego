@@ -29,18 +29,37 @@ type BFVCipher struct {
 	gkIndices   []int64
 }
 
-func NewBFVCipher(bfvParams bfv.Parameters, key *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder, pastaParams *PastaParams, keygen rlwe.KeyGenerator, secretKey rlwe.SecretKey, slots, halfslots uint64) BFVCipher {
+func NewBFVCipher(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder,
+	pastaParams *PastaParams, keygen rlwe.KeyGenerator, slots, halfslots uint64) BFVCipher {
 	return BFVCipher{
-		bfv.NewEncryptor(bfvParams, key),
-		bfv.NewDecryptor(bfvParams, key),
+		bfv.NewEncryptor(bfvParams, secretKey),
+		bfv.NewDecryptor(bfvParams, secretKey),
 		evaluator,
 		encoder,
 		pastaParams,
 		bfvParams,
 		keygen,
-		secretKey,
+		*secretKey,
 		slots,
 		halfslots,
+		[]int64{},
+	}
+}
+
+func NewBFVCipherForTest(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, pastaParams *PastaParams, keygen rlwe.KeyGenerator) BFVCipher {
+
+	return BFVCipher{
+		bfv.NewEncryptor(bfvParams, secretKey),
+		bfv.NewDecryptor(bfvParams, secretKey),
+		evaluator,
+		encoder,
+		pastaParams,
+		bfvParams,
+		keygen,
+		*secretKey,
+		0,
+		0,
 		[]int64{},
 	}
 }

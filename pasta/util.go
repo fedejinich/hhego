@@ -133,11 +133,11 @@ func (u *Util) round(r int) {
 
 	// S(x) or S'(x)
 	if r == int(u.rounds)-1 {
-		u.sboxCube(&u.state1_)
-		u.sboxCube(&u.state2_)
+		u.SboxCube(&u.state1_)
+		u.SboxCube(&u.state2_)
 	} else {
-		u.sboxFeistel(&u.state1_)
-		u.sboxFeistel(&u.state2_)
+		u.SboxFeistel(&u.state1_)
+		u.SboxFeistel(&u.state2_)
 	}
 }
 
@@ -145,8 +145,8 @@ func (u *Util) round(r int) {
 // |2I I|
 // |I 2I| X [Mij X y + cij]
 func (u *Util) linearLayer() {
-	u.matmul(&u.state1_)
-	u.matmul(&u.state2_)
+	u.Matmul(&u.state1_)
+	u.Matmul(&u.state2_)
 
 	u.addRc(&u.state1_)
 	u.addRc(&u.state2_)
@@ -154,12 +154,16 @@ func (u *Util) linearLayer() {
 	u.mix()
 }
 
+func (u *Util) Matmul(state *Block) {
+	u.MatmulBy(state, u.getRandomVector(false))
+}
+
 // Mij X y
-func (u *Util) matmul(state *Block) {
+func (u *Util) MatmulBy(state *Block, vec []uint64) {
 	var newState Block
 
-	rand := u.getRandomVector(false)
-	currRow := rand
+	rand := vec
+	currRow := vec
 
 	for i := 0; i < T; i++ {
 		for j := 0; j < T; j++ {
@@ -195,7 +199,7 @@ func (u *Util) addRc(state *Block) {
 }
 
 // [S(x)]i = (x)3
-func (u *Util) sboxCube(state *Block) {
+func (u *Util) SboxCube(state *Block) {
 	for i := 0; i < T; i++ {
 		currentState := big.NewInt(int64(state[i]))
 		modulus := big.NewInt(int64(u.modulus))
@@ -209,7 +213,7 @@ func (u *Util) sboxCube(state *Block) {
 }
 
 // S'(x) = x + (rot(-1)(x) . m)^2
-func (u *Util) sboxFeistel(state *Block) {
+func (u *Util) SboxFeistel(state *Block) {
 	pastaP := big.NewInt(int64(u.modulus))
 	var newState Block
 	newState[0] = state[0]

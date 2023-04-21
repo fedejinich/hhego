@@ -274,7 +274,7 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree, level,
 			0x7fffffffa50001, 0x7fffffff9f0001, 0x7fffffff7e0001, 0x7fffffff770001, 0x7fffffff380001,
 			0x7fffffff330001, 0x7fffffff2d0001, 0x7fffffff170001, 0x7fffffff150001, 0x7ffffffef00001,
 			0xfffffffff70001} // same SEAL coeff_modulus
-		// todo(fedejinich) still need to disable NTT
+		params.P = []uint64{} // todo(fedejinich) not sure about this
 	} else if degree == uint64(math.Pow(2, 12)) {
 		fmt.Println("polynomial degree = 2^12 (4096)")
 		params = bfv.PN12QP101pq // params with LogN = 2^12, post quantum
@@ -295,8 +295,7 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree, level,
 		keygen, secretKey)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams,
-		keygen, *secretKey, bfvSlots, bfvSlots/2)
+	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams, keygen, bfvSlots, bfvSlots/2)
 
 	return bfvCipher, bfvEncoder, bfvParams, hhegobfv.NewUtilByCipher(bfvCipher, *secretKey), rem
 }

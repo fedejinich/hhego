@@ -67,8 +67,8 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 	// stateRot = 0, x_1, x_2, x_3, .... x_(t-1)
 
 	// square
-	u.evaluator.Mul(stateRot, stateRot, stateRot)
-	u.evaluator.Relinearize(stateRot, stateRot) // needs relinearization
+	stateRot = u.evaluator.MulNew(stateRot, stateRot)
+	stateRot = u.evaluator.RelinearizeNew(stateRot) // needs relinearization
 	// stateRot = 0, x_1^2, x_2^2, x_3^2, .... x_(t-1)^2
 
 	result := u.evaluator.AddNew(state, stateRot)
@@ -77,35 +77,17 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 	return result
 }
 
-func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.Ciphertext) {
-	// todo(fedejinich) not sure about maxLevel and DefaultScale
-	linearTransform := bfv.GenLinearTransformBSGS(u.encoder, sliceToMap(mat1), u.bfvParams.MaxLevel(),
-		u.bfvParams.DefaultScale(), 2.0)
+//
 
-	rotations := linearTransform.Rotations()
-
-	evk := rlwe.NewEvaluationKeySet()
-	// todo(fedejinich) this is slow
-	for _, galEl := range u.bfvParams.GaloisElementsForRotations(rotations) {
-		evk.GaloisKeys[galEl] = u.keygen.GenGaloisKeyNew(galEl, &u.secretKey)
-	}
-
-	tmp := u.evaluator.
-		WithKey(evk).
-		LinearTransformNew(state, linearTransform)
-
-	*stateOut = tmp[0]
-}
-
-func (u Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
-	return u.babyStepGigantStep(state, mat1, mat2, slots, halfslots)
+func (u *Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
+	return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
 }
 
 // todo(fedejinich) this constants shouldn't be here
 const BsgsN1 = 16
 const BsgsN2 = 8
 
-func (u *Util) babyStepGigantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
+func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
 	matrixDim := pasta.T
 
 	if ((matrixDim * 2) != int(slots)) && ((matrixDim * 4) > int(halfslots)) {
@@ -197,17 +179,6 @@ func (u *Util) babyStepGigantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 
 	return &outerSum
 }
 
-// todo(fedejinich) shouldn't use this, is non performant
-func sliceToMap(slice [][]uint64) map[int][]uint64 {
-	result := make(map[int][]uint64)
-
-	for idx, subSlice := range slice {
-		result[idx] = subSlice
-	}
-
-	return result
-}
-
 func resize(slice []uint64, newSize int, value uint64) []uint64 {
 	initSize := len(slice)
 	if initSize >= newSize {
@@ -249,3 +220,33 @@ func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Paramete
 
 	return decomp
 }
+
+//func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.Ciphertext) {
+//	// todo(fedejinich) not sure about maxLevel and DefaultScale
+//	linearTransform := bfv.GenLinearTransformBSGS(u.encoder, sliceToMap(mat1), u.bfvParams.MaxLevel(),
+//		u.bfvParams.DefaultScale(), 2.0)
+//
+//	rotations := linearTransform.Rotations()
+//
+//	evk := rlwe.NewEvaluationKeySet()
+//	// todo(fedejinich) this is slow
+//	for _, galEl := range u.bfvParams.GaloisElementsForRotations(rotations) {
+//		evk.GaloisKeys[galEl] = u.keygen.GenGaloisKeyNew(galEl, &u.secretKey)
+//	}
+//
+//	tmp := u.evaluator.
+//		WithKey(evk).
+//		LinearTransformNew(state, linearTransform)
+//
+//	*stateOut = tmp[0]
+//}
+//// todo(fedejinich) shouldn't use this, is non performant
+//func sliceToMap(slice [][]uint64) map[int][]uint64 {
+//	result := make(map[int][]uint64)
+//
+//	for idx, subSlice := range slice {
+//		result[idx] = subSlice
+//	}
+//
+//	return result
+//}

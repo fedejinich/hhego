@@ -289,20 +289,21 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree, level,
 		t.Errorf("couldn't initialize bfvParams")
 	}
 	keygen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := keygen.GenKeyPairNew()
+	secretKey, _ := keygen.GenKeyPair()
 	// generate evaluation keys (galois keys) for rotations
-	evks, rem := genEvaluationKeySet(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots, bfvParams.Parameters, *keygen, secretKey)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evks)
+	evk, rem := genEvaluationKey(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots, bfvParams.Parameters,
+		keygen, secretKey)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams,
-		*keygen, *secretKey, bfvSlots, bfvSlots/2)
+		keygen, *secretKey, bfvSlots, bfvSlots/2)
 
 	return bfvCipher, bfvEncoder, bfvParams, hhegobfv.NewUtilByCipher(bfvCipher, *secretKey), rem
 }
 
-// genEvaluationKeySet generating galois keys for automorphisms (rotations)
-func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64,
-	bfvSlots uint64, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) (*rlwe.EvaluationKeySet, uint64) {
+// genEvaluationKey generating galois keys for automorphisms (rotations)
+func genEvaluationKey(matrixSize uint64, plainSize uint64, degree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64,
+	bfvSlots uint64, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) (rlwe.EvaluationKey, uint64) {
 
 	rem := matrixSize % plainSize
 	numBlock := int64(matrixSize / plainSize)
@@ -331,8 +332,8 @@ func genEvaluationKeySet(matrixSize uint64, plainSize uint64, degree uint64, use
 	return genGK(gkIndices, params, keygen, secretKey), rem // create galois key
 }
 
-func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) *rlwe.EvaluationKeySet {
-	evk := rlwe.NewEvaluationKeySet()
+func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) rlwe.EvaluationKey {
+	//evk := rlwe.NewEvaluationKeySet()
 
 	galEls := make([]uint64, len(gkIndices))
 	for i, rot := range gkIndices {
@@ -347,11 +348,19 @@ func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, se
 	}
 
 	// set column rotation galois keys
-	for _, galEl := range galEls {
-		evk.GaloisKeys[galEl] = keygen.GenGaloisKeyNew(galEl, secretKey)
+
+	rks := keygen.GenRotationKeys(galEls, secretKey)
+	rlk := keygen.GenRelinearizationKey(secretKey, 1) // todo(fedejinich) not sure about using 1
+	evk := rlwe.EvaluationKey{
+		Rlk:  rlk,
+		Rtks: rks,
 	}
 
-	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
+	//for _, galEl := range  {
+	//	evk.GaloisKeys[galEl] = keygen.GenGaloisKeyNew(galEl, secretKey)
+	//}
+	//
+	//evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
 
 	return evk
 }

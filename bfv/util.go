@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
+	util "hhego"
 	"hhego/pasta"
 )
 
@@ -25,30 +26,31 @@ func NewUtilByCipher(bfvCipher BFVCipher, secretKey rlwe.SecretKey) Util {
 		bfvCipher.Evaluator, bfvCipher.Keygen, secretKey)
 }
 
-func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) {
-	roundConstants := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel()) // todo(fedejinich) not sure about MaxLevel
+func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) *rlwe.Ciphertext {
+	roundConstants := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel())
 	u.encoder.Encode(rc, roundConstants)
-	u.evaluator.Add(state, roundConstants, state)
+	return u.evaluator.AddNew(state, roundConstants)
 }
 
-func (u *Util) Mix(state *rlwe.Ciphertext) {
+func (u *Util) Mix(state *rlwe.Ciphertext) *rlwe.Ciphertext {
 	tmp := u.evaluator.RotateRowsNew(state) // todo(fedejinich) this is called 'rotate_columns' in SEAL
 	u.evaluator.Add(tmp, state, state)
-	u.evaluator.Add(state, tmp, state)
+	return u.evaluator.AddNew(state, tmp)
 }
 
-func (u *Util) SboxCube(state *rlwe.Ciphertext) {
+func (u *Util) SboxCube(state *rlwe.Ciphertext) *rlwe.Ciphertext {
 	for i := 0; i < 3; i++ {
-		u.evaluator.Mul(state, state, state)
+		state = u.evaluator.MulNew(state, state)
 	}
+	return state
 }
 
-func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) {
+func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphertext {
 	// rotate state
 	stateRot := u.evaluator.RotateColumnsNew(state, -1) // todo(fedejinich) this is called 'rotate_rows' in SEAL
 
 	// mask rotate state
-	mask := bfv.NewPlaintext(u.bfvParams, state.Level()) // todo(fedejinich) not sure about 'Level'
+	mask := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel()) // todo(fedejinich) not sure about 'Level'
 	maskVec := make([]uint64, pasta.T+halfslots)
 	for i := range maskVec {
 		maskVec[i] = 1 // todo(fedejinich) is this ok?
@@ -67,8 +69,10 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) {
 	u.evaluator.Relinearize(stateRot, stateRot)
 	// stateRot = 0, x_1^2, x_2^2, x_3^2, .... x_(t-1)^2
 
-	u.evaluator.Add(state, stateRot, state)
+	result := u.evaluator.AddNew(state, stateRot)
 	// state = x_1, x_1^2 + x_2, x_2^2 + x_3, x_3^2 + x_4, .... x_(t-1)^2 + x_t
+
+	return result
 }
 
 func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.Ciphertext) {
@@ -114,25 +118,29 @@ func (u *Util) babyStepGigantStep(state rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 	// diagonal method preperation:
 	matrix := make([]rlwe.Plaintext, matrixDim)
 	for i := 0; i < matrixDim; i++ {
-		diag := make([]uint64, halfslots+uint64(matrixDim))
-		tmp := make([]uint64, matrixDim)
+		diagSize := int(halfslots) + matrixDim
+		diag := make([]uint64, diagSize)
+		tmpSize := matrixDim
+		tmp := make([]uint64, tmpSize)
+
 		k := uint64(i / BsgsN1)
 
 		for j := 0; j < matrixDim; j++ {
-			diag = append(diag, mat1[j][(j+matrixDim-i)%matrixDim])
-			tmp = append(tmp, mat2[j][(j+matrixDim-i)%matrixDim])
+			diag[diagSize-1-j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
+			tmp[tmpSize-1-j] = mat2[j][(j+matrixDim-i)%matrixDim]   // push back
 		}
 
 		// rotate:
 		if k != 0 {
-			diag = rotate2(diag[0], diag[0]+(k*BsgsN1), diag[len(diag)-1], diag) // todo(fedejinich) not sure about using this method
-			tmp = rotate2(tmp[0], tmp[0]+k*BsgsN1, tmp[len(diag)-1], tmp)        // todo(fedejinich) not sure about using this method
+			util.Rotate(diag[0], diag[0]+(uint64(k)*BsgsN1), diag[len(diag)-1], diag) // todo(fedejinich) not sure about using this method
+			util.Rotate(tmp[0], tmp[0]+(uint64(k)*BsgsN1), tmp[len(tmp)-1], tmp)      // todo(fedejinich) not sure about using this method
 		}
 
 		// prepare for non-full-packed rotations
 		if halfslots != pasta.T {
-			diag = resize(diag, int(halfslots), 0)
-			tmp = resize(tmp, int(halfslots), 0)
+			newSize := int(halfslots)
+			diag = resize(diag, newSize, 0) // todo(fedejinich) resize uses append
+			tmp = resize(tmp, newSize, 0)   // todo(fedejinich) resize uses append
 			for m := uint64(0); m < k*BsgsN1; m++ {
 				indexSrc := pasta.T - 1 - m
 				indexDest := halfslots - 1 - m
@@ -143,14 +151,14 @@ func (u *Util) babyStepGigantStep(state rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 			}
 		}
 		// combine both diags
-		diag = resize(diag, int(slots), 0)
+		diag = resize(diag, int(slots), 0) // todo(fedejinich) resize uses append
 		for j := halfslots; j < slots; j++ {
 			diag[j] = tmp[j-halfslots]
 		}
 
-		r := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel()) // todo(fedejinich) not sure about max level
+		r := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel())
 		u.encoder.Encode(diag, r)
-		matrix = append(matrix, *r)
+		matrix[matrixDim-i-1] = *r // push back
 	}
 
 	// prepare for non-full-packed rotations
@@ -160,19 +168,19 @@ func (u *Util) babyStepGigantStep(state rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 		u.evaluator.Add(&state, stateRot, &state)
 	}
 
-	var temp, outerSum, innerSum rlwe.Ciphertext
-
 	// prepare rotations
 	rot := make([]rlwe.Ciphertext, BsgsN1)
 	rot[0] = state
 	for j := 1; j < BsgsN1; j++ {
-		u.evaluator.RotateColumns(&rot[j-1], -1, &rot[j])
+		rot[j] = *u.evaluator.RotateColumnsNew(&rot[j-1], -1)
 	}
 
+	var outerSum, innerSum rlwe.Ciphertext
 	for k := 0; k < BsgsN2; k++ {
-		u.evaluator.Mul(&rot[0], matrix[k*BsgsN1], &innerSum)
+
+		u.evaluator.Mul(&rot[0], &matrix[k*BsgsN1], &innerSum)
 		for j := 1; j < BsgsN1; j++ {
-			u.evaluator.Mul(&rot[j], matrix[k*BsgsN1+j], &temp)
+			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j])
 			u.evaluator.Add(&innerSum, temp, &innerSum) // todo(fedejinich) not sure about adding an empty 'temp'
 		}
 		if k != 0 { // todo(fedejinich) not sure about 'k'
@@ -185,105 +193,33 @@ func (u *Util) babyStepGigantStep(state rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 	return outerSum
 }
 
-// todo(fedejinich) review this implementation, it might be wrong
-// Performs a left rotation on a range of elements.
-// Specifically, std::rotate swaps the elements in the range [first, last)
-// in such a way that the elements in [first, middle) are placed after the elements in [middle, last)
-// while the orders of the elements in both ranges are preserved.
-func rotate(first, middle, last uint64, arr []uint64) uint64 {
-	if first == middle {
-		return last
+// todo(fedejinich) shouldn't use this, is non performant
+func sliceToMap(slice [][]uint64) map[int][]uint64 {
+	result := make(map[int][]uint64)
+
+	for idx, subSlice := range slice {
+		result[idx] = subSlice
 	}
 
-	if middle == last {
-		return first
-	}
-
-	write := first
-	nextRead := first
-
-	for read := middle; read != last; write, read = write+1, read+1 {
-		if write == nextRead {
-			nextRead = read
-		}
-		arr[write], arr[read] = arr[read], arr[write]
-	}
-
-	return rotate(write, nextRead, last, arr)
+	return result
 }
 
-func rotate2(first, middle, last uint64, arr []uint64) []uint64 {
-	if first == middle {
-		return arr
-	}
-
-	if middle == last {
-		return arr
-	}
-
-	rotated := make([]uint64, len(arr))
-	copy(rotated, arr)
-
-	write := first
-	nextRead := first
-
-	for read := middle; read != last; write, read = write+1, read+1 {
-		if write == nextRead {
-			nextRead = read
-		}
-		rotated[write], rotated[read] = arr[read], arr[write]
-	}
-
-	rotated = rotate2(write, nextRead, last, rotated)
-	return rotated
-}
-
-// it avoids recursion, this might be better
-//func rotate(first, middle, last int, arr []int) int {
-//	if first == middle {
-//		return last
-//	}
-//
-//	if middle == last {
-//		return first
-//	}
-//
-//	next := middle
-//	for first != next {
-//		arr[first], arr[next] = arr[next], arr[first]
-//		first++
-//		next++
-//		if next == last {
-//			next = middle
-//		} else if first == middle {
-//			middle = next
-//		}
-//	}
-//
-//	return first
-//}
-
-// todo(fedejinich) same considerations as 'rotate'
 func resize(slice []uint64, newSize int, value uint64) []uint64 {
-	if newSize < 0 || newSize == len(slice) {
-		return slice
+	initSize := len(slice)
+	if initSize >= newSize {
+		return slice[:newSize]
 	}
 
-	if len(slice) < newSize {
-		// Grow the slice
-		for i := len(slice); i < newSize; i++ {
-			slice = append(slice, value)
+	newSlice := make([]uint64, newSize)
+	for i := 0; i < newSize; i++ {
+		if i < initSize {
+			newSlice[i] = slice[i]
+		} else {
+			newSlice[i] = value
 		}
-	} else {
-		// Shrink the slice
-		slice = slice[:newSize]
 	}
 
-	if len(slice) != newSize {
-		fmt.Println("wrong resize")
-	}
-
-	return slice
+	return newSlice
 }
 
 func (u *Util) Flatten(decomp []rlwe.Ciphertext, plainSize int, evaluator bfv.Evaluator) rlwe.Ciphertext {
@@ -300,7 +236,7 @@ func (u *Util) Flatten(decomp []rlwe.Ciphertext, plainSize int, evaluator bfv.Ev
 func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator) []rlwe.Ciphertext {
 	lastIndex := len(decomp) - 1
 	last := decomp[lastIndex]
-	plaintext := bfv.NewPlaintext(params, params.MaxLevel()) // todo(fedejinich) not sure about MaxLevel
+	plaintext := bfv.NewPlaintext(params, params.MaxLevel()) // halfslots
 	encoder.Encode(mask, plaintext)
 
 	evaluator.Mul(&last, plaintext, &last)
@@ -308,15 +244,4 @@ func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Paramete
 	decomp[lastIndex] = last // todo(fedejinich) isn't this unnecessary?
 
 	return decomp
-}
-
-// todo(fedejinich) shouldn't use this, is non performant
-func sliceToMap(slice [][]uint64) map[int][]uint64 {
-	result := make(map[int][]uint64)
-
-	for idx, subSlice := range slice {
-		result[idx] = subSlice
-	}
-
-	return result
 }

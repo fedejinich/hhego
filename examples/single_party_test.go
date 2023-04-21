@@ -226,7 +226,6 @@ func packedTest(t *testing.T, secretKey, plaintext, ciphertextExpected []uint64,
 
 	// homomorphically encrypt secret key
 	//skTmp := bfvEncoder.EncodeNew(secretKey, bfvParams.MaxLevel(), bfvParams.DefaultScale()) // todo(fedejinich) not sure about scale
-	//ciphSec := bfvCipher.EncryptPastaSecretKey(secskTmp)                                        // todo(fedejinich) not sure about MaxLevel
 	ciphSec := bfvCipher.EncryptPastaSecretKey(secretKey)
 	// todo(fedejinich) it's NTT while in SEAL it's not NTT
 
@@ -293,10 +292,10 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, degree, level,
 	secretKey, _ := keygen.GenKeyPairNew()
 	// generate evaluation keys (galois keys) for rotations
 	evks, rem := genEvaluationKeySet(matrixSize, plainSize, degree, useBsGs, bsGsN2, bsGsN1, bfvSlots, bfvParams.Parameters, *keygen, secretKey)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evks) // todo(fedejinich) not sure about evaluation evaluationKey
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, evks)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvCipher := hhegobfv.NewBFVCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams,
-		*keygen, *secretKey, bfvSlots, bfvSlots/2) // todo(fedejinich) can also be encrypted with the PK
+		*keygen, *secretKey, bfvSlots, bfvSlots/2)
 
 	return bfvCipher, bfvEncoder, bfvParams, hhegobfv.NewUtilByCipher(bfvCipher, *secretKey), rem
 }
@@ -348,14 +347,9 @@ func genGK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, se
 	}
 
 	// set column rotation galois keys
-	//for _, galEl := range params.GaloisElementsForRotations(gkIndices) {
 	for _, galEl := range galEls {
 		evk.GaloisKeys[galEl] = keygen.GenGaloisKeyNew(galEl, secretKey)
 	}
-
-	// set row rotation galois key
-	//evk.GaloisKeys[params.GaloisElementForRowRotation()] =
-	//	keygen.GenGaloisKeyNew(params.GaloisElementForRowRotation(), secretKey)
 
 	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
 

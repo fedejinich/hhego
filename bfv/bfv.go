@@ -15,12 +15,6 @@ type PastaParams struct {
 	Modulus    int
 }
 
-// SealParams todo(fedejinich) this is temporal, will be removed.
-type SealParams struct {
-	Halfslots uint64 // todo(fedejinich) this should be calcualted
-	Slots     uint64
-}
-
 type BFVCipher struct {
 	encryptor   rlwe.Encryptor
 	decryptor   rlwe.Decryptor
@@ -61,8 +55,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 	numBlock := math.Ceil(float64(size) / float64(bfvCipher.pastaParams.CipherSize)) // todo(fedejinich) float?
 
-	// todo(fedejinich) not sure about secretKey
-	pastaUtil := pasta.NewUtil(secretKey.Value[0].Buff, uint64(bfvCipher.pastaParams.Modulus), bfvCipher.pastaParams.Rounds)
+	pastaUtil := pasta.NewUtil(nil, uint64(bfvCipher.pastaParams.Modulus), bfvCipher.pastaParams.Rounds)
 	bfvUtil := NewUtil(bfvCipher.bfvParams, bfvCipher.Encoder, bfvCipher.Evaluator, bfvCipher.Keygen,
 		bfvCipher.secretKey)
 	result := make([]rlwe.Ciphertext, int(numBlock))
@@ -73,26 +66,20 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 		fmt.Printf("block %d\n", b)
 
-		// todo(fedejinich) refactor this into (...) = pastaUtil.round(...)
 		for r := 1; r <= bfvCipher.pastaParams.Rounds; r++ {
 			fmt.Printf("round %d\n", r)
-			// todo(fedejinich) can be refactored into (mat1, mat2, rc) = pastaUtil.InitParams()
 			mat1 := pastaUtil.RandomMatrix()
 			mat2 := pastaUtil.RandomMatrix()
-			rc := pastaUtil.RCVec(bfvCipher.halfslots) // todo(fedejinich) this should have t size as tXt random matrix, right?
+			rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
-			// todo(fedejinich) we can do a huge optimization here: we can do everything it's done in just ONE big matrix,
-			//   instead of splitting into two steps
-			//bfvUtil.Matmul(state, mat1, &state)
-			//bfvUtil.Matmul(state, mat2, &state)
 			bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots, &state)
 
-			bfvUtil.AddRc(state, rc)
-			bfvUtil.Mix(state)
+			state = bfvUtil.AddRc(state, rc)
+			state = bfvUtil.Mix(state)
 			if r == bfvCipher.pastaParams.Rounds {
-				bfvUtil.SboxCube(state)
+				state = bfvUtil.SboxCube(state)
 			} else {
-				bfvUtil.SboxFeistel(state, bfvCipher.halfslots)
+				state = bfvUtil.SboxFeistel(state, bfvCipher.halfslots)
 			}
 
 			//printNoise(state)
@@ -100,26 +87,21 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 		fmt.Println("final add")
 
-		// todo(fedejinich) refactor this into (...) = pastaUtil.round(...)
 		mat1 := pastaUtil.RandomMatrix()
 		mat2 := pastaUtil.RandomMatrix()
 		rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
-		// todo(fedejinich) in the c++ impl, everything it's done in just ONE big matrix,
-		//   here we split it in two steps (will be refactored)
-		//bfvUtil.Matmul(state, mat1, &state)
-		//bfvUtil.Matmul(state, mat2, &state)
 		bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots, &state)
 
-		bfvUtil.AddRc(state, rc)
-		bfvUtil.Mix(state)
+		state = bfvUtil.AddRc(state, rc)
+		state = bfvUtil.Mix(state)
 
 		// add cipher
 		offset := b * bfvCipher.pastaParams.CipherSize
 		size := math.Min(float64((b+1)*bfvCipher.pastaParams.CipherSize), float64(size))
 		ciphertextTemp := encryptedMessage[offset:int(size)] // todo(fedejinich) not completely sure about this
 
-		plaintext := bfv.NewPlaintext(bfvCipher.bfvParams, bfvCipher.bfvParams.MaxLevel()) // todo(fedejinich) not sure about MaxLevel()
+		plaintext := bfv.NewPlaintext(bfvCipher.bfvParams, bfvCipher.bfvParams.MaxLevel())
 		bfvCipher.Encoder.Encode(ciphertextTemp, plaintext)
 		bfvCipher.Evaluator.Neg(state, state)            // todo(fedejinich) ugly
 		bfvCipher.Evaluator.Add(state, plaintext, state) // todo(fedejinich) ugly
@@ -152,7 +134,7 @@ func (bfvCipher *BFVCipher) DecryptPacked(ciphertext *rlwe.Ciphertext, matrixSiz
 }
 
 func (bfvCipher *BFVCipher) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
-	plaintext := bfv.NewPlaintext(bfvCipher.bfvParams, bfvCipher.bfvParams.MaxLevel()) // todo(fedejinich) not sure about maxlevel
+	plaintext := bfv.NewPlaintext(bfvCipher.bfvParams, bfvCipher.bfvParams.MaxLevel())
 	keyTmp := make([]uint64, bfvCipher.Halfslots()+pasta.T)
 
 	for i := uint64(0); i < pasta.T; i++ {

@@ -58,8 +58,8 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 	pastaUtil := pasta.NewUtil(nil, uint64(bfvCipher.pastaParams.Modulus), bfvCipher.pastaParams.Rounds)
 	bfvUtil := NewUtil(bfvCipher.bfvParams, bfvCipher.Encoder, bfvCipher.Evaluator, bfvCipher.Keygen,
 		bfvCipher.secretKey)
-	result := make([]rlwe.Ciphertext, int(numBlock))
 
+	result := make([]rlwe.Ciphertext, int(numBlock))
 	for b := 0; b < int(numBlock); b++ {
 		pastaUtil.InitShake(uint64(nonce), uint64(b))
 		state := secretKey
@@ -72,7 +72,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 			mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
-			bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots, &state)
+			state = bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots)
 
 			state = bfvUtil.AddRc(state, rc)
 			state = bfvUtil.Mix(state)
@@ -81,8 +81,6 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 			} else {
 				state = bfvUtil.SboxFeistel(state, bfvCipher.halfslots)
 			}
-
-			//printNoise(state)
 		}
 
 		fmt.Println("final add")
@@ -91,7 +89,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		mat2 := pastaUtil.RandomMatrix()
 		rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
-		bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots, &state)
+		state = bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots)
 
 		state = bfvUtil.AddRc(state, rc)
 		state = bfvUtil.Mix(state)

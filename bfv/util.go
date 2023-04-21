@@ -39,9 +39,11 @@ func (u *Util) Mix(state *rlwe.Ciphertext) *rlwe.Ciphertext {
 }
 
 func (u *Util) SboxCube(state *rlwe.Ciphertext) *rlwe.Ciphertext {
-	for i := 0; i < 3; i++ {
-		state = u.evaluator.MulNew(state, state)
-	}
+	s := state.CopyNew()
+	state = u.evaluator.MulNew(state, state)  // ^ 2
+	state = u.evaluator.RelinearizeNew(state) // ciphertext X ciphertext -> relinearization
+	state = u.evaluator.MulNew(state, s)      // ^ 3
+	state = u.evaluator.RelinearizeNew(state) // ciphertext X ciphertext -> relinearization
 	return state
 }
 
@@ -61,12 +63,12 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 		maskVec[i] = 0
 	}
 	u.encoder.Encode(maskVec, mask)
-	u.evaluator.Mul(stateRot, mask, stateRot)
+	u.evaluator.Mul(stateRot, mask, stateRot) // no need to relinearize because it's been multiplied by a plain
 	// stateRot = 0, x_1, x_2, x_3, .... x_(t-1)
 
 	// square
 	u.evaluator.Mul(stateRot, stateRot, stateRot)
-	u.evaluator.Relinearize(stateRot, stateRot)
+	u.evaluator.Relinearize(stateRot, stateRot) // needs relinearization
 	// stateRot = 0, x_1^2, x_2^2, x_3^2, .... x_(t-1)^2
 
 	result := u.evaluator.AddNew(state, stateRot)
@@ -95,16 +97,15 @@ func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.C
 	*stateOut = tmp[0]
 }
 
-func (u Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64, stateOut **rlwe.Ciphertext) {
-	result := u.babyStepGigantStep(*state, mat1, mat2, slots, halfslots)
-	*stateOut = &result
+func (u Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
+	return u.babyStepGigantStep(state, mat1, mat2, slots, halfslots)
 }
 
 // todo(fedejinich) this constants shouldn't be here
 const BsgsN1 = 16
 const BsgsN2 = 8
 
-func (u *Util) babyStepGigantStep(state rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) rlwe.Ciphertext {
+func (u *Util) babyStepGigantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
 	matrixDim := pasta.T
 
 	if ((matrixDim * 2) != int(slots)) && ((matrixDim * 4) > int(halfslots)) {
@@ -165,32 +166,35 @@ func (u *Util) babyStepGigantStep(state rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 	if halfslots != pasta.T {
 		s := state.CopyNew()
 		stateRot := u.evaluator.RotateColumnsNew(s, pasta.T)
-		u.evaluator.Add(&state, stateRot, &state)
+		state = u.evaluator.AddNew(state, stateRot)
 	}
 
 	// prepare rotations
 	rot := make([]rlwe.Ciphertext, BsgsN1)
-	rot[0] = state
+	rot[0] = *state
 	for j := 1; j < BsgsN1; j++ {
 		rot[j] = *u.evaluator.RotateColumnsNew(&rot[j-1], -1)
 	}
 
-	var outerSum, innerSum rlwe.Ciphertext
+	var outerSum rlwe.Ciphertext
 	for k := 0; k < BsgsN2; k++ {
-
-		u.evaluator.Mul(&rot[0], &matrix[k*BsgsN1], &innerSum)
+		innerSum := u.evaluator.MulNew(&rot[0], &matrix[k*BsgsN1]) // no needs relinearization
 		for j := 1; j < BsgsN1; j++ {
-			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j])
-			u.evaluator.Add(&innerSum, temp, &innerSum) // todo(fedejinich) not sure about adding an empty 'temp'
+			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j]) // no needs relinearization
+			u.evaluator.Add(innerSum, temp, innerSum)                // todo(fedejinich) not sure about adding an empty 'temp'
 		}
 		if k != 0 { // todo(fedejinich) not sure about 'k'
-			outerSum = innerSum
+			outerSum = *innerSum
 		} else {
-			u.evaluator.RotateColumns(&innerSum, -k*BsgsN1, &innerSum)
-			u.evaluator.Add(&outerSum, innerSum, &outerSum)
+			if outerSum.Value == nil { // todo(fedejinich) this is not ideal
+				outerSum = *rlwe.NewCiphertext(u.bfvParams.Parameters, innerSum.Degree(), innerSum.Level())
+			}
+			u.evaluator.RotateColumns(innerSum, -k*BsgsN1, innerSum)
+			outerSum = *u.evaluator.AddNew(&outerSum, innerSum)
 		}
 	}
-	return outerSum
+
+	return &outerSum
 }
 
 // todo(fedejinich) shouldn't use this, is non performant
@@ -239,7 +243,7 @@ func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Paramete
 	plaintext := bfv.NewPlaintext(params, params.MaxLevel()) // halfslots
 	encoder.Encode(mask, plaintext)
 
-	evaluator.Mul(&last, plaintext, &last)
+	evaluator.Mul(&last, plaintext, &last) // no needs relinearization
 
 	decomp[lastIndex] = last // todo(fedejinich) isn't this unnecessary?
 

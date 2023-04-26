@@ -80,7 +80,11 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 //
 
 func (u *Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
-	return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
+	useBsGs := true
+	if useBsGs {
+		return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
+	}
+	return u.diagonal(*state, mat1, mat2, int(slots), int(halfslots))
 }
 
 // todo(fedejinich) this constants shouldn't be here
@@ -101,16 +105,21 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 	// diagonal method preperation:
 	matrix := make([]rlwe.Plaintext, matrixDim)
 	for i := 0; i < matrixDim; i++ {
-		diagSize := int(halfslots) + matrixDim
-		diag := make([]uint64, diagSize)
-		tmpSize := matrixDim
-		tmp := make([]uint64, tmpSize)
+		//diagSize := int(halfslots) + matrixDim
+		//diag := make([]uint64, diagSize)
+		diag := make([]uint64, matrixDim)
+		//diag := aq.New()
+		//tmpSize := matrixDim
+		tmp := make([]uint64, matrixDim)
+		//tmp := aq.New()
 
 		k := uint64(i / BsgsN1)
 
 		for j := 0; j < matrixDim; j++ {
-			diag[diagSize-1-j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
-			tmp[tmpSize-1-j] = mat2[j][(j+matrixDim-i)%matrixDim]   // push back
+			//diag[diagSize-1-j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
+			//tmp[tmpSize-1-j] = mat2[j][(j+matrixDim-i)%matrixDim]   // push back
+			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
+			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]
 		}
 
 		// rotate:
@@ -141,7 +150,7 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 
 		r := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel())
 		u.encoder.Encode(diag, r)
-		matrix[matrixDim-i-1] = *r // push back
+		matrix[i] = *r // push back
 	}
 
 	// prepare for non-full-packed rotations
@@ -160,6 +169,7 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 
 	var outerSum rlwe.Ciphertext
 	for k := 0; k < BsgsN2; k++ {
+		fmt.Sprintf("%v\n", k)
 		innerSum := u.evaluator.MulNew(&rot[0], &matrix[k*BsgsN1]) // no needs relinearization
 		for j := 1; j < BsgsN1; j++ {
 			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j]) // no needs relinearization
@@ -213,12 +223,50 @@ func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Paramete
 	last := decomp[lastIndex]
 	plaintext := bfv.NewPlaintext(params, params.MaxLevel()) // halfslots
 	encoder.Encode(mask, plaintext)
-
-	evaluator.Mul(&last, plaintext, &last) // no needs relinearization
-
-	decomp[lastIndex] = last // todo(fedejinich) isn't this unnecessary?
+	decomp[lastIndex] = *evaluator.MulNew(&last, plaintext) // no needs relinearization
 
 	return decomp
+}
+
+func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int) *rlwe.Ciphertext {
+	matrixDim := pasta.T
+
+	if matrixDim*2 != slots && matrixDim*4 > slots {
+		fmt.Println("too little slots for matmul implementation!")
+		fmt.Errorf("too little slots for matmul implementation!")
+	}
+
+	// non-full-packed rotation preparation
+	if halfslots != matrixDim {
+		stateRot := u.evaluator.RotateColumnsNew(&state, matrixDim)
+		state = *u.evaluator.AddNew(&state, stateRot)
+	}
+
+	// diagonal method preperation:
+	matrix := make([]rlwe.Plaintext, matrixDim)
+	for i := 0; i < matrixDim; i++ {
+		diag := make([]uint64, matrixDim+halfslots)
+		for t := 0; t < len(diag); t++ {
+			diag[t] = 0
+		}
+
+		for j := 0; j < matrixDim; j++ {
+			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
+			diag[j+halfslots] = mat2[j][(j+matrixDim-i)%matrixDim]
+		}
+		row := u.encoder.EncodeNew(diag, u.bfvParams.MaxLevel())
+		matrix[i] = *row
+	}
+
+	sum := state.CopyNew()
+	sum = u.evaluator.MulNew(sum, &matrix[0]) // ciphertext X plaintext, no need relin
+	for i := 1; i < matrixDim; i++ {
+		state = *u.evaluator.RotateColumnsNew(&state, -1)
+		tmp := u.evaluator.MulNew(&state, &matrix[i]) // ciphertext X plaintext, no need relin
+		sum = u.evaluator.AddNew(sum, tmp)
+	}
+
+	return sum
 }
 
 //func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.Ciphertext) {

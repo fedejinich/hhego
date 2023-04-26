@@ -87,8 +87,10 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 		for r := 1; r <= bfvCipher.pastaParams.Rounds; r++ {
 			fmt.Printf("round %d\n", r)
-			mat1 := pastaUtil.RandomMatrix()
-			mat2 := pastaUtil.RandomMatrix()
+			//mat1 := pastaUtil.RandomMatrix()
+			mat1 := fixedMatrix1()
+			mat2 := fixedMatrix2()
+			//mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
 			fmt.Println("Matmul2")
@@ -168,4 +170,44 @@ func (bfvCipher *BFVCipher) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciph
 
 func (bfvCipher *BFVCipher) Halfslots() uint64 {
 	return bfvCipher.halfslots // todo(fedejinich) it should be calcualted, refactor this ugly thing
+}
+
+func fixedMatrix1() [][]uint64 {
+	MATRIX_SIZE := 128
+	m := make([][]uint64, MATRIX_SIZE)
+	for i := range m {
+		m[i] = make([]uint64, MATRIX_SIZE)
+		for j := range m[i] {
+			if j == 24 {
+				m[i][j] = 28
+			} else if j == 74 {
+				m[i][j] = 9
+			} else if j%2 == 0 {
+				m[i][j] = 46
+			} else {
+				m[i][j] = 35
+			}
+		}
+	}
+	return m
+}
+
+func fixedMatrix2() [][]uint64 {
+	MATRIX_SIZE := 128
+	m := make([][]uint64, MATRIX_SIZE)
+	for i := range m {
+		m[i] = make([]uint64, MATRIX_SIZE)
+		for j := range m[i] {
+			if j == 69 {
+				m[i][j] = 85
+			} else if j == 42 {
+				m[i][j] = 58
+			} else if j%2 == 0 {
+				m[i][j] = 46
+			} else {
+				m[i][j] = 35
+			}
+		}
+	}
+	return m
 }

@@ -90,6 +90,10 @@ func (u *Util) RandomMatrix() [][]uint64 {
 
 func (u *Util) RCVec(vecSize uint64) []uint64 {
 	rc := make([]uint64, vecSize+T)
+	for i := uint64(0); i < vecSize+T; i++ {
+		rc[i] = 0
+	}
+
 	for i := 0; i < T; i++ {
 		rc[i] = u.generateRandomFieldElement(true)
 	}

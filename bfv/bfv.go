@@ -87,15 +87,14 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 		for r := 1; r <= bfvCipher.pastaParams.Rounds; r++ {
 			fmt.Printf("round %d\n", r)
-			//mat1 := pastaUtil.RandomMatrix()
-			mat1 := fixedMatrix1()
-			mat2 := fixedMatrix2()
-			//mat2 := pastaUtil.RandomMatrix()
+			mat1 := pastaUtil.RandomMatrix()
+			//mat1 := fixedMatrix1()
+			//mat2 := fixedMatrix2()
+			mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
 			fmt.Println("Matmul2")
 			state = bfvUtil.Matmul2(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots)
-
 			state = bfvUtil.AddRc(state, rc)
 			state = bfvUtil.Mix(state)
 			if r == bfvCipher.pastaParams.Rounds {
@@ -118,18 +117,26 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		state = bfvUtil.Mix(state)
 
 		// add cipher
-		offset := b * bfvCipher.pastaParams.CipherSize
+		//offset := b * bfvCipher.pastaParams.CipherSize
 		size := math.Min(float64((b+1)*bfvCipher.pastaParams.CipherSize), float64(size))
-		ciphertextTemp := encryptedMessage[offset:int(size)] // todo(fedejinich) not completely sure about this
+		//ciphertextTemp := encryptedMessage[offset:int(size)] // todo(fedejinich) not completely sure about this
+		var cipherTmp []uint64
+		cipherTmp = append(cipherTmp,
+			encryptedMessage[b*bfvCipher.pastaParams.CipherSize:min(int64((b+1)*bfvCipher.pastaParams.CipherSize), int64(size))]...)
 
-		plaintext := bfv.NewPlaintext(bfvCipher.bfvParams, bfvCipher.bfvParams.MaxLevel())
-		bfvCipher.Encoder.Encode(ciphertextTemp, plaintext)
-		bfvCipher.Evaluator.Neg(state, state)            // todo(fedejinich) ugly
-		bfvCipher.Evaluator.Add(state, plaintext, state) // todo(fedejinich) ugly
-		result[b] = *state
+		plaintext := bfvCipher.Encoder.EncodeNew(cipherTmp, state.Level())
+		state = bfvCipher.Evaluator.NegNew(state)                 // todo(fedejinich) ugly
+		result[b] = *bfvCipher.Evaluator.AddNew(state, plaintext) // todo(fedejinich) ugly
 	}
 	// todo(fedejinich) shoudl pasta.PlaintextSize be parameterizable?
 	return result
+}
+
+func min(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (bfvCipher *BFVCipher) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {

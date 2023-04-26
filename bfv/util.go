@@ -27,15 +27,16 @@ func NewUtilByCipher(bfvCipher BFVCipher, secretKey rlwe.SecretKey) Util {
 }
 
 func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) *rlwe.Ciphertext {
-	roundConstants := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel())
+	roundConstants := bfv.NewPlaintext(u.bfvParams, state.Level())
 	u.encoder.Encode(rc, roundConstants)
 	return u.evaluator.AddNew(state, roundConstants)
 }
 
 func (u *Util) Mix(state *rlwe.Ciphertext) *rlwe.Ciphertext {
+	stateOriginal := state.CopyNew()
 	tmp := u.evaluator.RotateRowsNew(state) // todo(fedejinich) this is called 'rotate_columns' in SEAL
-	u.evaluator.Add(tmp, state, state)
-	return u.evaluator.AddNew(state, tmp)
+	tmp = u.evaluator.AddNew(tmp, stateOriginal)
+	return u.evaluator.AddNew(stateOriginal, tmp)
 }
 
 func (u *Util) SboxCube(state *rlwe.Ciphertext) *rlwe.Ciphertext {
@@ -48,11 +49,13 @@ func (u *Util) SboxCube(state *rlwe.Ciphertext) *rlwe.Ciphertext {
 }
 
 func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphertext {
+	originalState := state.CopyNew()
+
 	// rotate state
 	stateRot := u.evaluator.RotateColumnsNew(state, -1) // todo(fedejinich) this is called 'rotate_rows' in SEAL
 
 	// mask rotate state
-	mask := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel()) // todo(fedejinich) not sure about 'Level'
+	mask := bfv.NewPlaintext(u.bfvParams, state.Level()) // todo(fedejinich) not sure about 'Level'
 	maskVec := make([]uint64, pasta.T+halfslots)
 	for i := range maskVec {
 		maskVec[i] = 1 // todo(fedejinich) is this ok?
@@ -63,15 +66,15 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 		maskVec[i] = 0
 	}
 	u.encoder.Encode(maskVec, mask)
-	u.evaluator.Mul(stateRot, mask, stateRot) // no need to relinearize because it's been multiplied by a plain
+	stateRot = u.evaluator.MulNew(stateRot, mask) // no need to relinearize because it's been multiplied by a plain
 	// stateRot = 0, x_1, x_2, x_3, .... x_(t-1)
 
 	// square
-	stateRot = u.evaluator.MulNew(stateRot, stateRot)
-	stateRot = u.evaluator.RelinearizeNew(stateRot) // needs relinearization
+	state = u.evaluator.MulNew(stateRot, stateRot)
+	state = u.evaluator.RelinearizeNew(state) // needs relinearization
 	// stateRot = 0, x_1^2, x_2^2, x_3^2, .... x_(t-1)^2
 
-	result := u.evaluator.AddNew(state, stateRot)
+	result := u.evaluator.AddNew(originalState, state)
 	// state = x_1, x_1^2 + x_2, x_2^2 + x_3, x_3^2 + x_4, .... x_(t-1)^2 + x_t
 
 	return result
@@ -87,7 +90,6 @@ func (u *Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, hal
 	return u.diagonal(*state, mat1, mat2, int(slots), int(halfslots))
 }
 
-// todo(fedejinich) this constants shouldn't be here
 const BsgsN1 = 16
 const BsgsN2 = 8
 

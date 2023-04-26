@@ -12,38 +12,54 @@ import (
 var P = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlainSize: pasta.PlaintextSize,
 	CipherSize: pasta.CiphertextSize, Rounds: 3}
 
-func TestUtil(t *testing.T) {
+func TestUtil_SboxFeistel(t *testing.T) {
 	pastaUtil, pastaParams := newPastaUtil()
-	//bfvUtil := newBfvUtil()
 	bfv, bfvUtil, _ := newBfv(pastaParams)
 
 	vec := testVec()
 
-	// basic bfv decrypt
+	// test SboxFeistel
+	pastaUtil.SboxFeistel(vec)
 	vec2 := testVec()
 	pt := bfv.Encoder.EncodeNew(toVec(vec2), bfv.bfvParams.MaxLevel())
 	ct := bfv.Encrypt(pt)
-	d := bfv.DecryptPacked(ct, uint64(len(vec2)))
-	if !util.EqualSlices(d, toVec(vec2)) {
-		t.Errorf("not equal slices")
-	}
-
-	// test SboxCube
-	pastaUtil.SboxCube(vec)
-	ct = bfvUtil.SboxCube(ct)
-	d = bfv.DecryptPacked(ct, uint64(len(vec)))
-	if !util.EqualSlices(d, toVec(vec)) {
-		t.Errorf("bfv SCube is not the same as pasta SCube")
-	}
-
-	// test SboxFeistel
-	vec = testVec()
-	vec3 := testVec()
-	pastaUtil.SboxFeistel(vec)
 	ct = bfvUtil.SboxFeistel(ct, 32768/2) // todo(fedejinich) why do i need that much slots?
-	d = bfv.DecryptPacked(ct, uint64(len(vec3)))
+	d := bfv.DecryptPacked(ct, uint64(len(vec2)))
 	if !util.EqualSlices(d, toVec(vec)) {
 		t.Errorf("bfv SFeistel is not the same as pasta SFeistel")
+	}
+}
+
+// todo(fedejinich) this might be removed
+func TestUtil_BasicBFVDecrypt(t *testing.T) {
+	_, pastaParams := newPastaUtil()
+	bfv, _, _ := newBfv(pastaParams)
+
+	vec := testVec()
+
+	// basic bfv decrypt
+	pt := bfv.Encoder.EncodeNew(toVec(vec), bfv.bfvParams.MaxLevel())
+	ct := bfv.Encrypt(pt)
+	d := bfv.DecryptPacked(ct, uint64(len(vec)))
+	if !util.EqualSlices(d, toVec(vec)) {
+		t.Errorf("not equal slices")
+	}
+}
+
+func TestUtil_SboxCube(t *testing.T) {
+	pastaUtil, pastaParams := newPastaUtil()
+	bfv, bfvUtil, _ := newBfv(pastaParams)
+	vec := testVec()
+
+	// test SboxCube
+	vec = testVec()
+	pt := bfv.Encoder.EncodeNew(toVec(vec), bfv.bfvParams.MaxLevel())
+	ct := bfv.Encrypt(pt)
+	pastaUtil.SboxCube(vec)
+	ct = bfvUtil.SboxCube(ct)
+	d := bfv.DecryptPacked(ct, uint64(len(vec)))
+	if !util.EqualSlices(d, toVec(vec)) {
+		t.Errorf("bfv SCube is not the same as pasta SCube")
 	}
 }
 
@@ -105,7 +121,13 @@ func newBfv(pastaParams PastaParams) (BFVCipher, Util, bfv2.Parameters) {
 }
 
 func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {
-	return rlwe.EvaluationKey{}
+	galEl := parameters.GaloisElementForColumnRotationBy(-1)
+	rtks := keygen.GenRotationKeys([]uint64{galEl}, key)
+
+	return rlwe.EvaluationKey{
+		Rlk:  keygen.GenRelinearizationKey(key, 1),
+		Rtks: rtks,
+	}
 }
 
 func secretKey() []uint64 {
@@ -148,45 +170,45 @@ func secretKey() []uint64 {
 		0x0a3a4, 0x03bcd, 0x036d9, 0x05acf}
 }
 
-func fixedMatrix1() [][]uint64 {
-	MATRIX_SIZE := 128
-	m := make([][]uint64, MATRIX_SIZE)
-	for i := range m {
-		m[i] = make([]uint64, MATRIX_SIZE)
-		for j := range m[i] {
-			if j == 24 {
-				m[i][j] = 28
-			} else if j == 74 {
-				m[i][j] = 9
-			} else if j%2 == 0 {
-				m[i][j] = 46
-			} else {
-				m[i][j] = 35
-			}
-		}
-	}
-	return m
-}
-
-func fixedMatrix2() [][]uint64 {
-	MATRIX_SIZE := 128
-	m := make([][]uint64, MATRIX_SIZE)
-	for i := range m {
-		m[i] = make([]uint64, MATRIX_SIZE)
-		for j := range m[i] {
-			if j == 69 {
-				m[i][j] = 85
-			} else if j == 42 {
-				m[i][j] = 58
-			} else if j%2 == 0 {
-				m[i][j] = 46
-			} else {
-				m[i][j] = 35
-			}
-		}
-	}
-	return m
-}
+//func fixedMatrix1() [][]uint64 {
+//	MATRIX_SIZE := 128
+//	m := make([][]uint64, MATRIX_SIZE)
+//	for i := range m {
+//		m[i] = make([]uint64, MATRIX_SIZE)
+//		for j := range m[i] {
+//			if j == 24 {
+//				m[i][j] = 28
+//			} else if j == 74 {
+//				m[i][j] = 9
+//			} else if j%2 == 0 {
+//				m[i][j] = 46
+//			} else {
+//				m[i][j] = 35
+//			}
+//		}
+//	}
+//	return m
+//}
+//
+//func fixedMatrix2() [][]uint64 {
+//	MATRIX_SIZE := 128
+//	m := make([][]uint64, MATRIX_SIZE)
+//	for i := range m {
+//		m[i] = make([]uint64, MATRIX_SIZE)
+//		for j := range m[i] {
+//			if j == 69 {
+//				m[i][j] = 85
+//			} else if j == 42 {
+//				m[i][j] = 58
+//			} else if j%2 == 0 {
+//				m[i][j] = 46
+//			} else {
+//				m[i][j] = 35
+//			}
+//		}
+//	}
+//	return m
+//}
 
 //nonce := uint64(123456789)
 //numBlock := int(math.Ceil(float64(len(vec2)) / float64(pasta.T)))

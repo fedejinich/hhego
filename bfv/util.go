@@ -6,6 +6,8 @@ import (
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	util "hhego"
 	"hhego/pasta"
+	"math/rand"
+	"time"
 )
 
 type Util struct {
@@ -34,7 +36,7 @@ func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) *rlwe.Ciphertext {
 
 func (u *Util) Mix(state *rlwe.Ciphertext) *rlwe.Ciphertext {
 	stateOriginal := state.CopyNew()
-	tmp := u.evaluator.RotateRowsNew(state) // todo(fedejinich) this is called 'rotate_columns' in SEAL
+	tmp := u.evaluator.RotateRowsNew(state)
 	tmp = u.evaluator.AddNew(tmp, stateOriginal)
 	return u.evaluator.AddNew(stateOriginal, tmp)
 }
@@ -52,13 +54,13 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 	originalState := state.CopyNew()
 
 	// rotate state
-	stateRot := u.evaluator.RotateColumnsNew(state, -1) // todo(fedejinich) this is called 'rotate_rows' in SEAL
+	stateRot := u.evaluator.RotateColumnsNew(state, -1)
 
 	// mask rotate state
-	mask := bfv.NewPlaintext(u.bfvParams, state.Level()) // todo(fedejinich) not sure about 'Level'
+	mask := bfv.NewPlaintext(u.bfvParams, state.Level())
 	maskVec := make([]uint64, pasta.T+halfslots)
 	for i := range maskVec {
-		maskVec[i] = 1 // todo(fedejinich) is this ok?
+		maskVec[i] = 1
 	}
 	maskVec[0] = 0
 	maskVec[halfslots] = 0
@@ -85,8 +87,10 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 func (u *Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
 	useBsGs := true
 	if useBsGs {
+		fmt.Println("bsgs")
 		return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
 	}
+	fmt.Println("diagonal")
 	return u.diagonal(*state, mat1, mat2, int(slots), int(halfslots))
 }
 
@@ -107,21 +111,14 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 	// diagonal method preperation:
 	matrix := make([]rlwe.Plaintext, matrixDim)
 	for i := 0; i < matrixDim; i++ {
-		//diagSize := int(halfslots) + matrixDim
-		//diag := make([]uint64, diagSize)
 		diag := make([]uint64, matrixDim)
-		//diag := aq.New()
-		//tmpSize := matrixDim
 		tmp := make([]uint64, matrixDim)
-		//tmp := aq.New()
 
 		k := uint64(i / BsgsN1)
 
 		for j := 0; j < matrixDim; j++ {
-			//diag[diagSize-1-j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
-			//tmp[tmpSize-1-j] = mat2[j][(j+matrixDim-i)%matrixDim]   // push back
-			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
-			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]
+			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
+			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]  // push back
 		}
 
 		// rotate:
@@ -133,8 +130,8 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 		// prepare for non-full-packed rotations
 		if halfslots != pasta.T {
 			newSize := int(halfslots)
-			diag = resize(diag, newSize, 0) // todo(fedejinich) resize uses append
-			tmp = resize(tmp, newSize, 0)   // todo(fedejinich) resize uses append
+			diag = resize(diag, newSize, 0)
+			tmp = resize(tmp, newSize, 0)
 			for m := uint64(0); m < k*BsgsN1; m++ {
 				indexSrc := pasta.T - 1 - m
 				indexDest := halfslots - 1 - m
@@ -144,13 +141,14 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 				tmp[indexSrc] = 0
 			}
 		}
+
 		// combine both diags
-		diag = resize(diag, int(slots), 0) // todo(fedejinich) resize uses append
+		diag = resize(diag, int(slots), 0)
 		for j := halfslots; j < slots; j++ {
 			diag[j] = tmp[j-halfslots]
 		}
 
-		r := bfv.NewPlaintext(u.bfvParams, u.bfvParams.MaxLevel())
+		r := bfv.NewPlaintext(u.bfvParams, state.Level())
 		u.encoder.Encode(diag, r)
 		matrix[i] = *r // push back
 	}
@@ -175,9 +173,9 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 		innerSum := u.evaluator.MulNew(&rot[0], &matrix[k*BsgsN1]) // no needs relinearization
 		for j := 1; j < BsgsN1; j++ {
 			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j]) // no needs relinearization
-			u.evaluator.Add(innerSum, temp, innerSum)                // todo(fedejinich) not sure about adding an empty 'temp'
+			u.evaluator.Add(innerSum, temp, innerSum)
 		}
-		if k != 0 { // todo(fedejinich) not sure about 'k'
+		if k != 0 {
 			outerSum = *innerSum
 		} else {
 			if outerSum.Value == nil { // todo(fedejinich) this is not ideal
@@ -210,11 +208,10 @@ func resize(slice []uint64, newSize int, value uint64) []uint64 {
 }
 
 func (u *Util) Flatten(decomp []rlwe.Ciphertext, plainSize int, evaluator bfv.Evaluator) rlwe.Ciphertext {
-	// todo(fedejinich) implement this
 	ciphertext := decomp[0]
 	for i := 1; i < len(decomp); i++ {
 		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * plainSize))
-		evaluator.Add(&ciphertext, tmp, &ciphertext)
+		ciphertext = *evaluator.AddNew(&ciphertext, tmp)
 	}
 
 	return ciphertext
@@ -223,7 +220,7 @@ func (u *Util) Flatten(decomp []rlwe.Ciphertext, plainSize int, evaluator bfv.Ev
 func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator) []rlwe.Ciphertext {
 	lastIndex := len(decomp) - 1
 	last := decomp[lastIndex]
-	plaintext := bfv.NewPlaintext(params, params.MaxLevel()) // halfslots
+	plaintext := bfv.NewPlaintext(params, last.Level()) // halfslots
 	encoder.Encode(mask, plaintext)
 	decomp[lastIndex] = *evaluator.MulNew(&last, plaintext) // no needs relinearization
 
@@ -271,6 +268,147 @@ func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, hal
 	return sum
 }
 
+func (u *Util) SetEvaluator(evaluator bfv.Evaluator) { // todo(fedejinich) this is not the best way, improve it
+	u.evaluator = evaluator
+}
+
+// GenerateEvaluationKeys create keys for rotations and relinearization
+func (u *Util) GenerateEvaluationKeys(matrixSize uint64, plainSize uint64, modDegree uint64, useBsGs bool,
+	bsGsN2 uint64, bsGsN1 uint64, reminder uint64) rlwe.EvaluationKey {
+	// first we create the right galois indexes to define the right rotations steps (whether for columns or rows)
+
+	numBlock := int64(matrixSize / plainSize)
+	if reminder > 0 {
+		numBlock++
+	}
+	var flattenGks []int
+	for i := int64(1); i < numBlock; i++ {
+		flattenGks = append(flattenGks, -int(i*int64(plainSize)))
+	}
+
+	var gkIndices []int
+	gkIndices = addGkIndices(gkIndices, modDegree, useBsGs)
+
+	// add flatten gks
+	for i := 0; i < len(flattenGks); i++ {
+		gkIndices = append(gkIndices, flattenGks[i])
+	}
+
+	if useBsGs {
+		addBsGsIndices(bsGsN1, bsGsN2, &gkIndices, modDegree)
+	} else {
+		addDiagonalIndices(matrixSize, &gkIndices, modDegree)
+	}
+
+	// finally we create the right evaluation set (rotation & reliniarization keys)
+	return genEVK(gkIndices, u.bfvParams.Parameters, u.keygen, &u.secretKey)
+}
+
+func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) rlwe.EvaluationKey {
+	galEls := make([]uint64, len(gkIndices))
+	for i, rot := range gkIndices {
+		// SEAL uses gkIndex = 0 to represent a column rotation (row in lattigo)
+		//    we fix this by generating the right gk for 0 elements
+		if rot == 0 {
+			galEls[i] = params.GaloisElementForRowRotation()
+		} else {
+			galEls[i] = params.GaloisElementForColumnRotationBy(rot)
+		}
+	}
+
+	// set column rotation galois keys
+	rks := keygen.GenRotationKeys(galEls, secretKey)
+	rlk := keygen.GenRelinearizationKey(secretKey, 1)
+	evk := rlwe.EvaluationKey{
+		Rlk:  rlk,
+		Rtks: rks,
+	}
+
+	return evk
+}
+
+func addGkIndices(gkIndices []int, degree uint64, useBsGs bool) []int {
+	gkIndices = append(gkIndices, 0)
+	gkIndices = append(gkIndices, -1)
+	if pasta.T*2 != degree {
+		gkIndices = append(gkIndices, pasta.T)
+	}
+	if useBsGs {
+		for k := uint64(1); k < BsgsN2; k++ {
+			gkIndices = append(gkIndices, int(-k*BsgsN1))
+		}
+	}
+	return gkIndices
+}
+
+func addBsGsIndices(n1 uint64, n2 uint64, gkIndices *[]int, slots uint64) {
+	mul := n1 * n2
+	addDiagonalIndices(mul, gkIndices, slots)
+
+	if n1 == 1 || n2 == 1 {
+		return
+	}
+
+	for k := uint64(1); k < n2; k++ {
+		*gkIndices = append(*gkIndices, int(k*n1))
+	}
+}
+
+func addDiagonalIndices(matrixSize uint64, gkIndices *[]int, slots uint64) {
+	if matrixSize*2 != slots {
+		*gkIndices = append(*gkIndices, -int(matrixSize))
+	}
+	*gkIndices = append(*gkIndices, 1)
+}
+
+func RandomInputV(N int, plainMod uint64) []uint64 {
+	rand.Seed(time.Now().UnixNano())
+	vi := make([]uint64, 0, N)
+	for i := 0; i < N; i++ {
+		vi = append(vi, rand.Uint64()%plainMod) // not cryptosecure ;)
+	}
+	return vi
+}
+
+//func fixedMatrix1() [][]uint64 {
+//	MATRIX_SIZE := 128
+//	m := make([][]uint64, MATRIX_SIZE)
+//	for i := range m {
+//		m[i] = make([]uint64, MATRIX_SIZE)
+//		for j := range m[i] {
+//			if j == 24 {
+//				m[i][j] = 28
+//			} else if j == 74 {
+//				m[i][j] = 9
+//			} else if j%2 == 0 {
+//				m[i][j] = 46
+//			} else {
+//				m[i][j] = 35
+//			}
+//		}
+//	}
+//	return m
+//}
+//
+//func fixedMatrix2() [][]uint64 {
+//	MATRIX_SIZE := 128
+//	m := make([][]uint64, MATRIX_SIZE)
+//	for i := range m {
+//		m[i] = make([]uint64, MATRIX_SIZE)
+//		for j := range m[i] {
+//			if j == 69 {
+//				m[i][j] = 85
+//			} else if j == 42 {
+//				m[i][j] = 58
+//			} else if j%2 == 0 {
+//				m[i][j] = 46
+//			} else {
+//				m[i][j] = 35
+//			}
+//		}
+//	}
+//	return m
+//}
 //func (u *Util) Matmul(state *rlwe.Ciphertext, mat1 [][]uint64, stateOut **rlwe.Ciphertext) {
 //	// todo(fedejinich) not sure about maxLevel and DefaultScale
 //	linearTransform := bfv.GenLinearTransformBSGS(u.encoder, sliceToMap(mat1), u.bfvParams.MaxLevel(),

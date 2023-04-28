@@ -83,7 +83,7 @@ func (u *Util) RandomMatrix() [][]uint64 {
 	mat := make([][]uint64, T)
 	mat[0] = u.getRandomVector(false)
 	for i := uint64(1); i < T; i++ {
-		mat[i] = u.calculateRow(mat[i-1], mat[0]) // todo(fedejinich) this might be changed for calculateColumn
+		mat[i] = u.calculateRow(mat[i-1], mat[0])
 	}
 	return mat
 }

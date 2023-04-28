@@ -1,7 +1,6 @@
 package bfv
 
 import (
-	"fmt"
 	bfv2 "github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	pasta "hhego/pasta"
@@ -23,14 +22,13 @@ func TestUtil_SboxFeistel(t *testing.T) {
 	vec2 := testVec()
 	pt := bfv.Encoder.EncodeNew(toVec(vec2), bfv.bfvParams.MaxLevel())
 	ct := bfv.Encrypt(pt)
-	ct = bfvUtil.SboxFeistel(ct, 32768/2) // todo(fedejinich) why do i need that much slots?
+	ct = bfvUtil.SboxFeistel(ct, 32768/2)
 	d := bfv.DecryptPacked(ct, uint64(len(vec2)))
 	if !util.EqualSlices(d, toVec(vec)) {
 		t.Errorf("bfv SFeistel is not the same as pasta SFeistel")
 	}
 }
 
-// todo(fedejinich) this might be removed
 func TestUtil_BasicBFVDecrypt(t *testing.T) {
 	_, pastaParams := newPastaUtil()
 	bfv, _, _ := newBfv(pastaParams)
@@ -98,14 +96,7 @@ func newPastaUtil() (pasta.Util, PastaParams) {
 
 func newBfv(pastaParams PastaParams) (BFVCipher, Util, bfv2.Parameters) {
 	// set bfv params
-	var params bfv2.ParametersLiteral
-	fmt.Println("polynomial degree = 2^15 (32768)")
-	params = bfv2.PN15QP827pq // post quantum params with LogN = 2^15
-	params.Q = []uint64{0x7fffffffe90001, 0x7fffffffbf0001, 0x7fffffffbd0001, 0x7fffffffba0001, 0x7fffffffaa0001,
-		0x7fffffffa50001, 0x7fffffff9f0001, 0x7fffffff7e0001, 0x7fffffff770001, 0x7fffffff380001,
-		0x7fffffff330001, 0x7fffffff2d0001, 0x7fffffff170001, 0x7fffffff150001, 0x7ffffffef00001,
-		0xfffffffff70001} // same SEAL coeff_modulus
-	params.P = []uint64{} // todo(fedejinich) not sure about this
+	var params = CustomBFVParams
 
 	// BFV parameters (128 bit security)
 	bfvParams, _ := bfv2.NewParametersFromLiteral(params) // post-quantum params
@@ -115,9 +106,14 @@ func newBfv(pastaParams PastaParams) (BFVCipher, Util, bfv2.Parameters) {
 	evk := genEvaluationKey(bfvParams.Parameters, keygen, secretKey)
 	bfvEvaluator := bfv2.NewEvaluator(bfvParams, evk)
 	bfvEncoder := bfv2.NewEncoder(bfvParams)
-	bfvCipher := NewBFVCipherForTest(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams, keygen)
+	bfvCipher := newBfvCipher(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams, keygen)
 
 	return bfvCipher, NewUtilByCipher(bfvCipher, *secretKey), bfvParams
+}
+
+func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluator bfv2.Evaluator,
+	encoder bfv2.Encoder, pastaParams *PastaParams, keygen rlwe.KeyGenerator) BFVCipher {
+	return NewBFVCipher(bfvParams, secretKey, evaluator, encoder, pastaParams, keygen, 0, 0)
 }
 
 func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {

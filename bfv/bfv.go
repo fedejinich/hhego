@@ -16,17 +16,27 @@ type PastaParams struct {
 }
 
 type BFVCipher struct {
-	encryptor   rlwe.Encryptor
-	decryptor   rlwe.Decryptor
-	Evaluator   bfv.Evaluator
-	Encoder     bfv.Encoder
+	encryptor rlwe.Encryptor
+	decryptor rlwe.Decryptor
+	Evaluator bfv.Evaluator
+	Encoder   bfv.Encoder
+	Keygen    rlwe.KeyGenerator
+	bfvParams bfv.Parameters
+	secretKey rlwe.SecretKey
+
 	pastaParams *PastaParams
-	bfvParams   bfv.Parameters
-	Keygen      rlwe.KeyGenerator
-	secretKey   rlwe.SecretKey
 	slots       uint64 // determined by the polynomial modulus degree of the encryption parameters
 	halfslots   uint64 // given by slots // todo(fedejinich) remove this field, it's unnecessary
-	gkIndices   []int64
+}
+
+var CustomBFVParams = bfv.ParametersLiteral{
+	LogN: 15, // 2^15 = 32768
+	Q: []uint64{0x7fffffffe90001, 0x7fffffffbf0001, 0x7fffffffbd0001, 0x7fffffffba0001, 0x7fffffffaa0001,
+		0x7fffffffa50001, 0x7fffffff9f0001, 0x7fffffff7e0001, 0x7fffffff770001, 0x7fffffff380001,
+		0x7fffffff330001, 0x7fffffff2d0001, 0x7fffffff170001, 0x7fffffff150001, 0x7ffffffef00001,
+		0xfffffffff70001}, // same SEAL coeff_modulus (Total bit count: 881 = 15 * 55 + 56)
+	P: []uint64{}, // todo(fedejinich) SEAL uses this as expand_mod_chain
+	T: 65537,
 }
 
 func NewBFVCipher(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder,
@@ -36,31 +46,12 @@ func NewBFVCipher(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator
 		bfv.NewDecryptor(bfvParams, secretKey),
 		evaluator,
 		encoder,
-		pastaParams,
-		bfvParams,
 		keygen,
+		bfvParams,
 		*secretKey,
+		pastaParams,
 		slots,
 		halfslots,
-		[]int64{},
-	}
-}
-
-func NewBFVCipherForTest(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator,
-	encoder bfv.Encoder, pastaParams *PastaParams, keygen rlwe.KeyGenerator) BFVCipher {
-
-	return BFVCipher{
-		bfv.NewEncryptor(bfvParams, secretKey),
-		bfv.NewDecryptor(bfvParams, secretKey),
-		evaluator,
-		encoder,
-		pastaParams,
-		bfvParams,
-		keygen,
-		*secretKey,
-		0,
-		0,
-		[]int64{},
 	}
 }
 
@@ -72,6 +63,7 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 	nonce := 123456789
 	size := len(encryptedMessage)
 
+	// calculates the amount of PASTA blocks needed
 	numBlock := math.Ceil(float64(size) / float64(bfvCipher.pastaParams.CipherSize)) // todo(fedejinich) float?
 
 	pastaUtil := pasta.NewUtil(nil, uint64(bfvCipher.pastaParams.Modulus), bfvCipher.pastaParams.Rounds)
@@ -81,6 +73,9 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 	result := make([]rlwe.Ciphertext, int(numBlock))
 	for b := 0; b < int(numBlock); b++ {
 		pastaUtil.InitShake(uint64(nonce), uint64(b))
+		// 'state' contains the two PASTA branches encoded as bfv.ciphertext
+		// s1 := secretKey[0:halfslots]
+		// s1 := secretKey[:halfslots]
 		state := secretKey
 
 		fmt.Printf("block %d\n", b)
@@ -125,10 +120,9 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 			encryptedMessage[b*bfvCipher.pastaParams.CipherSize:min(int64((b+1)*bfvCipher.pastaParams.CipherSize), int64(size))]...)
 
 		plaintext := bfvCipher.Encoder.EncodeNew(cipherTmp, state.Level())
-		state = bfvCipher.Evaluator.NegNew(state)                 // todo(fedejinich) ugly
-		result[b] = *bfvCipher.Evaluator.AddNew(state, plaintext) // todo(fedejinich) ugly
+		state = bfvCipher.Evaluator.NegNew(state)
+		result[b] = *bfvCipher.Evaluator.AddNew(state, plaintext)
 	}
-	// todo(fedejinich) shoudl pasta.PlaintextSize be parameterizable?
 	return result
 }
 
@@ -143,17 +137,6 @@ func (bfvCipher *BFVCipher) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext
 	return bfvCipher.decryptor.DecryptNew(ciphertext)
 }
 
-func (bfvCipher *BFVCipher) flatten(decomp []rlwe.Ciphertext, plainSize int) rlwe.Ciphertext {
-	// todo(fedejinich) implement this
-	ciphertext := decomp[0]
-	for i := 1; i < len(decomp); i++ {
-		tmp := bfvCipher.Evaluator.RotateColumnsNew(&decomp[i], -(i * plainSize))
-		bfvCipher.Evaluator.Add(&ciphertext, tmp, &ciphertext)
-	}
-
-	return ciphertext
-}
-
 func (bfvCipher *BFVCipher) DecryptPacked(ciphertext *rlwe.Ciphertext, matrixSize uint64) []uint64 {
 	plaintext := bfvCipher.decryptor.DecryptNew(ciphertext)
 	dec := bfvCipher.Encoder.DecodeUintNew(plaintext)
@@ -162,59 +145,17 @@ func (bfvCipher *BFVCipher) DecryptPacked(ciphertext *rlwe.Ciphertext, matrixSiz
 }
 
 func (bfvCipher *BFVCipher) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
-	plaintext := bfv.NewPlaintext(bfvCipher.bfvParams, bfvCipher.bfvParams.MaxLevel())
 	keyTmp := make([]uint64, bfvCipher.Halfslots()+pasta.T)
 
 	for i := uint64(0); i < pasta.T; i++ {
 		keyTmp[i] = secretKey[i]
 		keyTmp[i+bfvCipher.Halfslots()] = secretKey[i+pasta.T]
 	}
-	bfvCipher.Encoder.Encode(keyTmp, plaintext)
-	encrypt := bfvCipher.Encrypt(plaintext) // todo(fedejinich) refactor this
+	plaintext := bfvCipher.Encoder.EncodeNew(keyTmp, bfvCipher.bfvParams.MaxLevel())
 
-	return encrypt
+	return bfvCipher.Encrypt(plaintext)
 }
 
 func (bfvCipher *BFVCipher) Halfslots() uint64 {
 	return bfvCipher.halfslots // todo(fedejinich) it should be calcualted, refactor this ugly thing
-}
-
-func fixedMatrix1() [][]uint64 {
-	MATRIX_SIZE := 128
-	m := make([][]uint64, MATRIX_SIZE)
-	for i := range m {
-		m[i] = make([]uint64, MATRIX_SIZE)
-		for j := range m[i] {
-			if j == 24 {
-				m[i][j] = 28
-			} else if j == 74 {
-				m[i][j] = 9
-			} else if j%2 == 0 {
-				m[i][j] = 46
-			} else {
-				m[i][j] = 35
-			}
-		}
-	}
-	return m
-}
-
-func fixedMatrix2() [][]uint64 {
-	MATRIX_SIZE := 128
-	m := make([][]uint64, MATRIX_SIZE)
-	for i := range m {
-		m[i] = make([]uint64, MATRIX_SIZE)
-		for j := range m[i] {
-			if j == 69 {
-				m[i][j] = 85
-			} else if j == 42 {
-				m[i][j] = 58
-			} else if j%2 == 0 {
-				m[i][j] = 46
-			} else {
-				m[i][j] = 35
-			}
-		}
-	}
-	return m
 }

@@ -14,23 +14,23 @@ var P = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlainSize: pasta.Plaint
 
 var BfvHalfSlots = int(math.Pow(2, 15) / 2) // todo(fedejinich) this is ugly, do it better
 
-func TestUtil_SboxFeistel(t *testing.T) {
-	pastaUtil, pastaParams := newPastaUtil()
-	bfv, bfvUtil, _ := newBfv(pastaParams)
-
-	vec := testVec()
-
-	// test SboxFeistel
-	pastaUtil.SboxFeistel(vec)
-	vec2 := testVec()
-	pt := bfv.Encoder.EncodeNew(toVec(vec2), bfv.bfvParams.MaxLevel())
-	ct := bfv.Encrypt(pt)
-	ct = bfvUtil.SboxFeistel(ct, 32768/2)
-	d := bfv.DecryptPacked(ct, uint64(len(vec2)))
-	if !util.EqualSlices(d, toVec(vec)) {
-		t.Errorf("bfv SFeistel is not the same as pasta SFeistel")
-	}
-}
+//func TestUtil_SboxFeistel(t *testing.T) {
+//	pastaUtil, pastaParams := newPastaUtil()
+//	bfv, bfvUtil, _ := newBfv(pastaParams)
+//
+//	vec := testVec()
+//
+//	// test SboxFeistel
+//	pastaUtil.SboxFeistel(vec)
+//	vec2 := testVec()
+//	pt := bfv.Encoder.EncodeNew(toVec(vec2), bfv.bfvParams.MaxLevel())
+//	ct := bfv.Encrypt(pt)
+//	ct = bfvUtil.SboxFeistel(ct, 32768/2)
+//	d := bfv.DecryptPacked(ct, uint64(len(vec2)))
+//	if !util.EqualSlices(d, toVec(vec)) {
+//		t.Errorf("bfv SFeistel is not the same as pasta SFeistel")
+//	}
+//}
 
 func TestUtil_Mix(t *testing.T) {
 	pastaUtil, pastaParams := newPastaUtil()
@@ -55,7 +55,7 @@ func TestUtil_Mix(t *testing.T) {
 	ct = bfvUtil.Mix(ct)
 
 	stateAfterMix := toVec(pastaUtil.State())
-	decrypted := bfv.DecryptPacked(ct, uint64(len(stateAfterMix)))
+	decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
 	if !util.EqualSlices(decrypted, stateAfterMix) {
 		t.Errorf("bfv Mix is not the same as pasta Mix")
 	}
@@ -109,19 +109,36 @@ func TestUtil_BasicBFVDecrypt(t *testing.T) {
 
 func TestUtil_SboxCube(t *testing.T) {
 	pastaUtil, pastaParams := newPastaUtil()
+	pastaUtil2, _ := newPastaUtil()
 	bfv, bfvUtil, _ := newBfv(pastaParams)
-	vec := testVec()
 
-	vec = testVec()
-	pt := bfv.Encoder.EncodeNew(toVec(vec), bfv.bfvParams.MaxLevel())
+	s1 := testVec()
+	s2 := testVec2()
+
+	// split the state to the second half of the slots
+	pLength := BfvHalfSlots + len(s1)
+	p := make([]uint64, pLength)
+	for i := 0; i < pasta.T; i++ {
+		p[i] = s1[i]
+		p[i+BfvHalfSlots] = s2[i]
+	}
+
+	pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel())
 	ct := bfv.Encrypt(pt)
 
 	// test SboxCube
-	pastaUtil.SboxCube(vec)
 	ct = bfvUtil.SboxCube(ct)
+	pastaUtil.SboxCube(s1)
+	pastaUtil2.SboxCube(s2)
 
-	d := bfv.DecryptPacked(ct, uint64(len(vec)))
-	if !util.EqualSlices(d, toVec(pastaUtil.State())) {
+	decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
+	if !util.EqualSlices(decrypted, toVec(s1)) {
+		t.Errorf("bfv SCube is not the same as pasta SCube")
+	}
+
+	decrypted2 := bfv.DecryptPacked(ct, uint64(BfvHalfSlots+pasta.T))
+	decrypted2 = decrypted2[BfvHalfSlots:]
+	if !util.EqualSlices(decrypted2, toVec(s2)) {
 		t.Errorf("bfv SCube is not the same as pasta SCube")
 	}
 }

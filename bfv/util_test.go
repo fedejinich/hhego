@@ -5,11 +5,14 @@ import (
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	pasta "hhego/pasta"
 	"hhego/util"
+	"math"
 	"testing"
 )
 
 var P = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlainSize: pasta.PlaintextSize,
 	CipherSize: pasta.CiphertextSize, Rounds: 3}
+
+var BfvHalfSlots = int(math.Pow(2, 15) / 2) // todo(fedejinich) this is ugly, do it better
 
 func TestUtil_SboxFeistel(t *testing.T) {
 	pastaUtil, pastaParams := newPastaUtil()
@@ -28,6 +31,66 @@ func TestUtil_SboxFeistel(t *testing.T) {
 		t.Errorf("bfv SFeistel is not the same as pasta SFeistel")
 	}
 }
+
+func TestUtil_Mix(t *testing.T) {
+	pastaUtil, pastaParams := newPastaUtil()
+	bfv, bfvUtil, _ := newBfv(pastaParams)
+
+	s1 := testVec()
+	s2 := testVec2()
+
+	// split the state to the second half of the slots
+	pLength := BfvHalfSlots + len(s1)
+	p := make([]uint64, pLength)
+	for i := 0; i < pasta.T; i++ {
+		p[i] = s1[i]
+		p[i+BfvHalfSlots] = s2[i]
+	}
+
+	pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel()) // todo(fedejinich) this encoding is wrong
+	ct := bfv.Encrypt(pt)
+
+	// test Mix
+	pastaUtil.MixBy(s1, s2)
+	ct = bfvUtil.Mix(ct)
+
+	stateAfterMix := toVec(pastaUtil.State())
+	decrypted := bfv.DecryptPacked(ct, uint64(len(stateAfterMix)))
+	if !util.EqualSlices(decrypted, stateAfterMix) {
+		t.Errorf("bfv Mix is not the same as pasta Mix")
+	}
+}
+
+//func TestUtil_AddRc(t *testing.T) {
+//	pastaUtil, pastaParams := newPastaUtil()
+//	bfv, bfvUtil, _ := newBfv(pastaParams)
+//
+//	bfvHalfSlots := int(math.Pow(2, 15) / 2) // todo(fedejinich) this is ugly, do it better
+//
+//	s1 := testVec()
+//	s2 := testVec2()
+//
+//	// split the state to the second half of the slots
+//	pLength := bfvHalfSlots + len(s1)
+//	p := make([]uint64, pLength)
+//	for i := 0; i < pasta.T; i++ {
+//		p[i] = s1[i]
+//		p[i+bfvHalfSlots] = s2[i]
+//	}
+//
+//	pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel()) // todo(fedejinich) this encoding is wrong
+//	ct := bfv.Encrypt(pt)
+//
+//	// test Mix
+//	pastaUtil.AddRcBy(s1, s2)
+//	ct = bfvUtil.Mix(ct)
+//
+//	stateAfterMix := toVec(pastaUtil.State())
+//	decrypted := bfv.DecryptPacked(ct, uint64(len(stateAfterMix)))
+//	if !util.EqualSlices(decrypted, stateAfterMix) {
+//		t.Errorf("bfv Mix is not the same as pasta Mix")
+//	}
+//}
 
 func TestUtil_BasicBFVDecrypt(t *testing.T) {
 	_, pastaParams := newPastaUtil()
@@ -49,20 +112,22 @@ func TestUtil_SboxCube(t *testing.T) {
 	bfv, bfvUtil, _ := newBfv(pastaParams)
 	vec := testVec()
 
-	// test SboxCube
 	vec = testVec()
 	pt := bfv.Encoder.EncodeNew(toVec(vec), bfv.bfvParams.MaxLevel())
 	ct := bfv.Encrypt(pt)
+
+	// test SboxCube
 	pastaUtil.SboxCube(vec)
 	ct = bfvUtil.SboxCube(ct)
+
 	d := bfv.DecryptPacked(ct, uint64(len(vec)))
-	if !util.EqualSlices(d, toVec(vec)) {
+	if !util.EqualSlices(d, toVec(pastaUtil.State())) {
 		t.Errorf("bfv SCube is not the same as pasta SCube")
 	}
 }
 
 func testVec() *pasta.Block {
-	vecSize := 128
+	vecSize := pasta.T
 	var v pasta.Block
 	for j := 0; j < vecSize; j++ {
 		if j == 69 {
@@ -73,6 +138,23 @@ func testVec() *pasta.Block {
 			v[j] = 46
 		} else {
 			v[j] = 35
+		}
+	}
+	return &v
+}
+
+func testVec2() *pasta.Block {
+	vecSize := pasta.T
+	var v pasta.Block
+	for j := 0; j < vecSize; j++ {
+		if j == 69 {
+			v[j] = 91
+		} else if j == 42 {
+			v[j] = 17
+		} else if j%2 == 0 {
+			v[j] = 88
+		} else {
+			v[j] = 27
 		}
 	}
 	return &v
@@ -96,7 +178,8 @@ func newPastaUtil() (pasta.Util, PastaParams) {
 
 func newBfv(pastaParams PastaParams) (BFVCipher, Util, bfv2.Parameters) {
 	// set bfv params
-	var params = CustomBFVParams
+	//var params = CustomBFVParams
+	var params = bfv2.PN15QP880
 
 	// BFV parameters (128 bit security)
 	bfvParams, _ := bfv2.NewParametersFromLiteral(params) // post-quantum params
@@ -118,7 +201,8 @@ func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluato
 
 func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {
 	galEl := parameters.GaloisElementForColumnRotationBy(-1)
-	rtks := keygen.GenRotationKeys([]uint64{galEl}, key)
+	galEl2 := parameters.GaloisElementForRowRotation()
+	rtks := keygen.GenRotationKeys([]uint64{galEl, galEl2}, key)
 
 	return rlwe.EvaluationKey{
 		Rlk:  keygen.GenRelinearizationKey(key, 1),

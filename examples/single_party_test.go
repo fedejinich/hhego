@@ -111,7 +111,8 @@ func NewBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, modDegree, pla
 	var customParams bfv.ParametersLiteral
 	if modDegree == uint64(math.Pow(2, 15)) {
 		fmt.Println("polynomial modDegree = 2^15 (32768)")
-		customParams = hhegobfv.CustomBFVParams
+		//customParams = hhegobfv.CustomBFVParams
+		customParams = bfv.PN15QP880
 	} else {
 		t.Errorf("polynomial modDegree not supported (modDegree)")
 	}

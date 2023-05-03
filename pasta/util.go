@@ -155,7 +155,7 @@ func (u *Util) linearLayer() {
 	u.addRc(&u.state1_)
 	u.addRc(&u.state2_)
 
-	u.mix()
+	u.Mix()
 }
 
 func (u *Util) Matmul(state *Block) {
@@ -263,7 +263,7 @@ func (u *Util) calculateRow(prevRow, firstRow []uint64) []uint64 {
 // this is an optimized implementation of
 // (2 1)(state1_)
 // (1 2)(state2_)
-func (u *Util) mix() {
+func (u *Util) Mix() {
 	for i := 0; i < T; i++ {
 		pastaP := big.NewInt(int64(u.modulus))
 		state1 := big.NewInt(int64(u.state1_[i]))
@@ -281,4 +281,18 @@ func (u *Util) mix() {
 		u.state1_[i] = sum1.Uint64()
 		u.state2_[i] = sum2.Uint64()
 	}
+}
+
+// this is an optimized implementation of
+// (2 1)(state1_)
+// (1 2)(state2_)
+func (u *Util) MixBy(s1, s2 *Block) {
+	u.state1_ = *s1
+	u.state2_ = *s2
+	u.Mix()
+}
+
+// todo(fedejinich) only used for testing
+func (u *Util) State() *Block {
+	return &u.state1_
 }

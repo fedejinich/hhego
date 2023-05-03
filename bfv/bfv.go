@@ -35,7 +35,7 @@ var CustomBFVParams = bfv.ParametersLiteral{
 		0x7fffffffa50001, 0x7fffffff9f0001, 0x7fffffff7e0001, 0x7fffffff770001, 0x7fffffff380001,
 		0x7fffffff330001, 0x7fffffff2d0001, 0x7fffffff170001, 0x7fffffff150001, 0x7ffffffef00001,
 		0xfffffffff70001}, // same SEAL coeff_modulus (Total bit count: 881 = 15 * 55 + 56)
-	P: []uint64{}, // todo(fedejinich) SEAL uses this as expand_mod_chain
+	//P: []uint64{}, // todo(fedejinich) SEAL uses this as expand_mod_chain
 	T: 65537,
 }
 
@@ -113,11 +113,12 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 
 		// add cipher
 		//offset := b * bfvCipher.pastaParams.CipherSize
-		size := math.Min(float64((b+1)*bfvCipher.pastaParams.CipherSize), float64(size))
 		//ciphertextTemp := encryptedMessage[offset:int(size)] // todo(fedejinich) not completely sure about this
-		var cipherTmp []uint64
-		cipherTmp = append(cipherTmp,
-			encryptedMessage[b*bfvCipher.pastaParams.CipherSize:min(int64((b+1)*bfvCipher.pastaParams.CipherSize), int64(size))]...)
+		//cipherTmp = append(cipherTmp,
+		//	encryptedMessage[b*bfvCipher.pastaParams.CipherSize:min(int64((b+1)*bfvCipher.pastaParams.CipherSize), int64(size))]...)
+		start := 0 + (b * bfvCipher.pastaParams.CipherSize)
+		end := math.Min(float64((b+1)*bfvCipher.pastaParams.CipherSize), float64(size))
+		cipherTmp := encryptedMessage[start:int(end)]
 
 		plaintext := bfvCipher.Encoder.EncodeNew(cipherTmp, state.Level())
 		state = bfvCipher.Evaluator.NegNew(state)

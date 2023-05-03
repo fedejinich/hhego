@@ -85,7 +85,8 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 //
 
 func (u *Util) Matmul2(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
-	useBsGs := true
+	//useBsGs := true
+	useBsGs := false
 	if useBsGs {
 		fmt.Println("bsgs")
 		return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
@@ -110,6 +111,7 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 
 	// diagonal method preperation:
 	matrix := make([]rlwe.Plaintext, matrixDim)
+	aux := make([][]uint64, matrixDim)
 	for i := 0; i < matrixDim; i++ {
 		diag := make([]uint64, matrixDim)
 		tmp := make([]uint64, matrixDim)
@@ -151,6 +153,7 @@ func (u *Util) babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [
 		r := bfv.NewPlaintext(u.bfvParams, state.Level())
 		u.encoder.Encode(diag, r)
 		matrix[i] = *r // push back
+		aux[i] = diag  // for debug todo(fedejinich) remove this
 	}
 
 	// prepare for non-full-packed rotations

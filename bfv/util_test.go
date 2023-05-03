@@ -81,7 +81,6 @@ func TestUtil_Mix(t *testing.T) {
 
 func TestUtil_AddRc(t *testing.T) {
 	pastaUtil, pastaParams := newPastaUtil()
-	pastaUtil2, _ := newPastaUtil()
 	bfv, bfvUtil, _ := newBfv(pastaParams)
 
 	s1 := testVec()
@@ -99,7 +98,6 @@ func TestUtil_AddRc(t *testing.T) {
 	ct := bfv.Encrypt(pt)
 
 	pastaUtil.InitShake(uint64(123456789), 0)
-	pastaUtil2.InitShake(uint64(123456789), 0)
 	rcVec := pastaUtil.RCVec(uint64(BfvHalfSlots))
 
 	// test AddRc
@@ -154,9 +152,9 @@ func TestUtil_SboxCube(t *testing.T) {
 	ct := bfv.Encrypt(pt)
 
 	// test SboxCube
-	ct = bfvUtil.SboxCube(ct)
 	pastaUtil.SboxCube(s1)
 	pastaUtil2.SboxCube(s2)
+	ct = bfvUtil.SboxCube(ct)
 
 	decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
 	if !util.EqualSlices(decrypted, toVec(s1)) {
@@ -167,6 +165,48 @@ func TestUtil_SboxCube(t *testing.T) {
 	decrypted2 = decrypted2[BfvHalfSlots:]
 	if !util.EqualSlices(decrypted2, toVec(s2)) {
 		t.Errorf("bfv SCube is not the same as pasta SCube")
+	}
+}
+
+func TestUtil_MatMul(t *testing.T) {
+	pastaUtil, pastaParams := newPastaUtil()
+	pastaUtil.InitShake(uint64(123456789), 0)
+
+	bfv, bfvUtil, _ := newBfv(pastaParams)
+
+	s1 := testVec()
+	s2 := testVec2()
+
+	// split the state to the second half of the slots
+	pLength := BfvHalfSlots + len(s1)
+	p := make([]uint64, pLength)
+	for i := 0; i < pasta.T; i++ {
+		p[i] = s1[i]
+		p[i+BfvHalfSlots] = s2[i]
+	}
+
+	pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel())
+	ct := bfv.Encrypt(pt)
+
+	r1 := pastaUtil.GetRandomVector(false)
+	r2 := pastaUtil.GetRandomVector(false)
+	mat1 := pastaUtil.RandomMatrixBy(r1)
+	mat2 := pastaUtil.RandomMatrixBy(r2)
+
+	// test MatMul
+	pastaUtil.MatmulBy(s1, r1)
+	pastaUtil.MatmulBy(s2, r2)
+	ct = bfvUtil.Matmul2(ct, mat1, mat2, uint64(BfvHalfSlots*2), uint64(BfvHalfSlots))
+
+	decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
+	if !util.EqualSlices(decrypted, toVec(s1)) {
+		t.Errorf("bfv Matmul is not the same as pasta Matmul")
+	}
+
+	decrypted2 := bfv.DecryptPacked(ct, uint64(BfvHalfSlots+pasta.T))
+	decrypted2 = decrypted2[BfvHalfSlots:]
+	if !util.EqualSlices(decrypted2, toVec(s2)) {
+		t.Errorf("bfv Matmul is not the same as pasta Matmul")
 	}
 }
 
@@ -246,7 +286,16 @@ func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluato
 func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {
 	galEl := parameters.GaloisElementForColumnRotationBy(-1)
 	galEl2 := parameters.GaloisElementForRowRotation()
-	rtks := keygen.GenRotationKeys([]uint64{galEl, galEl2}, key)
+	els := []uint64{galEl, galEl2}
+
+	// useful for MatMulTest
+	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T)
+	els = append(els, galEl3)
+	for k := 0; k < BsgsN2; k++ {
+		els = append(els, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
+	}
+
+	rtks := keygen.GenRotationKeys(els, key)
 
 	return rlwe.EvaluationKey{
 		Rlk:  keygen.GenRelinearizationKey(key, 1),

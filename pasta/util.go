@@ -81,7 +81,17 @@ func (u *Util) InitShake(nonce, blockCounter uint64) {
 
 func (u *Util) RandomMatrix() [][]uint64 {
 	mat := make([][]uint64, T)
-	mat[0] = u.getRandomVector(false)
+	mat[0] = u.GetRandomVector(false)
+	for i := uint64(1); i < T; i++ {
+		mat[i] = u.calculateRow(mat[i-1], mat[0])
+	}
+	return mat
+}
+
+// todo(fedejinich) refactor this right now
+func (u *Util) RandomMatrixBy(vec []uint64) [][]uint64 {
+	mat := make([][]uint64, T)
+	mat[0] = vec
 	for i := uint64(1); i < T; i++ {
 		mat[i] = u.calculateRow(mat[i-1], mat[0])
 	}
@@ -103,7 +113,7 @@ func (u *Util) RCVec(vecSize uint64) []uint64 {
 	return rc
 }
 
-func (u *Util) getRandomVector(allowZero bool) []uint64 {
+func (u *Util) GetRandomVector(allowZero bool) []uint64 {
 	rc := make([]uint64, T)
 	for i := uint16(0); i < uint16(T); i++ {
 		rc[i] = u.GenerateRandomFieldElement(allowZero)
@@ -159,7 +169,7 @@ func (u *Util) linearLayer() {
 }
 
 func (u *Util) Matmul(state *Block) {
-	u.MatmulBy(state, u.getRandomVector(false))
+	u.MatmulBy(state, u.GetRandomVector(false))
 }
 
 // Mij X y
@@ -188,7 +198,7 @@ func (u *Util) MatmulBy(state *Block, vec []uint64) {
 
 // + cij
 func (u *Util) AddRc(state *Block) {
-	rcVec := u.getRandomVector(true)
+	rcVec := u.GetRandomVector(true)
 	u.AddRcBy(state, rcVec)
 }
 

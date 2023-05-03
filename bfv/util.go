@@ -156,10 +156,6 @@ func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Paramete
 	return decomp
 }
 
-func (u *Util) SetEvaluator(evaluator bfv.Evaluator) { // todo(fedejinich) this is not the best way, improve it
-	u.evaluator = evaluator
-}
-
 // GenerateEvaluationKeys create keys for rotations and relinearization
 func (u *Util) GenerateEvaluationKeys(matrixSize uint64, plainSize uint64, modDegree uint64, useBsGs bool,
 	bsGsN2 uint64, bsGsN1 uint64, reminder uint64) rlwe.EvaluationKey {

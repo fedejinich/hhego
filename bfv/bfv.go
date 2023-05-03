@@ -88,7 +88,6 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 			mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
-			fmt.Println("Matmul")
 			state = bfvUtil.Matmul(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots)
 			state = bfvUtil.AddRc(state, rc)
 			state = bfvUtil.Mix(state)
@@ -105,7 +104,6 @@ func (bfvCipher *BFVCipher) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ci
 		mat2 := pastaUtil.RandomMatrix()
 		rc := pastaUtil.RCVec(bfvCipher.halfslots)
 
-		fmt.Println("Matmul")
 		state = bfvUtil.Matmul(state, mat1, mat2, bfvCipher.slots, bfvCipher.halfslots)
 
 		state = bfvUtil.AddRc(state, rc)

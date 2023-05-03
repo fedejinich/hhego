@@ -168,7 +168,7 @@ func TestUtil_SboxCube(t *testing.T) {
 	}
 }
 
-func TestUtil_MatMul(t *testing.T) {
+func TestUtil_MatMulDiagonal(t *testing.T) {
 	pastaUtil, pastaParams := newPastaUtil()
 	pastaUtil.InitShake(uint64(123456789), 0)
 
@@ -196,7 +196,7 @@ func TestUtil_MatMul(t *testing.T) {
 	// test MatMul
 	pastaUtil.MatmulBy(s1, r1)
 	pastaUtil.MatmulBy(s2, r2)
-	ct = bfvUtil.Matmul2(ct, mat1, mat2, uint64(BfvHalfSlots*2), uint64(BfvHalfSlots))
+	ct = bfvUtil.Matmul(ct, mat1, mat2, uint64(BfvHalfSlots*2), uint64(BfvHalfSlots))
 
 	decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
 	if !util.EqualSlices(decrypted, toVec(s1)) {
@@ -385,4 +385,4 @@ func secretKey() []uint64 {
 
 //nonce := uint64(123456789)
 //numBlock := int(math.Ceil(float64(len(vec2)) / float64(pasta.T)))
-//ct = bfvUtil.Matmul2(ct, fixedMatrix1(), fixedMatrix2(), 32768, 32768/2)
+//ct = bfvUtil.Matmul(ct, fixedMatrix1(), fixedMatrix2(), 32768, 32768/2)

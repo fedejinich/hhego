@@ -188,22 +188,11 @@ func (u *Util) MatmulBy(state *Block, vec []uint64) {
 
 // + cij
 func (u *Util) AddRc(state *Block) {
-	for i := 0; i < T; i++ {
-		randomFE := u.GenerateRandomFieldElement(true)
-
-		currentState := big.NewInt(int64(state[i]))
-		randomFEInt := big.NewInt(int64(randomFE))
-
-		modulus := big.NewInt(int64(u.modulus))
-		currentState.Add(currentState, randomFEInt)
-		currentState.Mod(currentState, modulus)
-
-		state[i] = currentState.Uint64()
-	}
+	rcVec := u.getRandomVector(true)
+	u.AddRcBy(state, rcVec)
 }
 
-// todo(fedejinich) refactor AddRc to use this
-// + cij
+// this is only exposed for testing
 func (u *Util) AddRcBy(state *Block, randomFEVec []uint64) {
 	for i := 0; i < T; i++ {
 		currentState := big.NewInt(int64(state[i]))

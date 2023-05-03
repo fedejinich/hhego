@@ -61,36 +61,45 @@ func TestUtil_Mix(t *testing.T) {
 	}
 }
 
-//func TestUtil_AddRc(t *testing.T) {
-//	pastaUtil, pastaParams := newPastaUtil()
-//	bfv, bfvUtil, _ := newBfv(pastaParams)
-//
-//	bfvHalfSlots := int(math.Pow(2, 15) / 2) // todo(fedejinich) this is ugly, do it better
-//
-//	s1 := testVec()
-//	s2 := testVec2()
-//
-//	// split the state to the second half of the slots
-//	pLength := bfvHalfSlots + len(s1)
-//	p := make([]uint64, pLength)
-//	for i := 0; i < pasta.T; i++ {
-//		p[i] = s1[i]
-//		p[i+bfvHalfSlots] = s2[i]
-//	}
-//
-//	pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel()) // todo(fedejinich) this encoding is wrong
-//	ct := bfv.Encrypt(pt)
-//
-//	// test Mix
-//	pastaUtil.AddRcBy(s1, s2)
-//	ct = bfvUtil.Mix(ct)
-//
-//	stateAfterMix := toVec(pastaUtil.State())
-//	decrypted := bfv.DecryptPacked(ct, uint64(len(stateAfterMix)))
-//	if !util.EqualSlices(decrypted, stateAfterMix) {
-//		t.Errorf("bfv Mix is not the same as pasta Mix")
-//	}
-//}
+func TestUtil_AddRc(t *testing.T) {
+	pastaUtil, pastaParams := newPastaUtil()
+	pastaUtil2, _ := newPastaUtil()
+	bfv, bfvUtil, _ := newBfv(pastaParams)
+
+	s1 := testVec()
+	s2 := testVec2()
+
+	// split the state to the second half of the slots
+	pLength := BfvHalfSlots + len(s1)
+	p := make([]uint64, pLength)
+	for i := 0; i < pasta.T; i++ {
+		p[i] = s1[i]
+		p[i+BfvHalfSlots] = s2[i]
+	}
+
+	pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel())
+	ct := bfv.Encrypt(pt)
+
+	pastaUtil.InitShake(uint64(123456789), 0)
+	pastaUtil2.InitShake(uint64(123456789), 0)
+	rcVec := pastaUtil.RCVec(uint64(BfvHalfSlots))
+
+	// test AddRc
+	ct = bfvUtil.AddRc(ct, rcVec)
+	pastaUtil.AddRcBy(s1, rcVec)
+	pastaUtil.AddRcBy(s2, rcVec[BfvHalfSlots:])
+
+	decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
+	if !util.EqualSlices(decrypted, toVec(s1)) {
+		t.Errorf("bfv AddRc is not the same as pasta AddRc")
+	}
+
+	decrypted2 := bfv.DecryptPacked(ct, uint64(BfvHalfSlots+pasta.T))
+	decrypted2 = decrypted2[BfvHalfSlots:]
+	if !util.EqualSlices(decrypted2, toVec(s2)) {
+		t.Errorf("bfv AddRc is not the same as pasta AddRc")
+	}
+}
 
 func TestUtil_BasicBFVDecrypt(t *testing.T) {
 	_, pastaParams := newPastaUtil()

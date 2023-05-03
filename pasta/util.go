@@ -95,10 +95,10 @@ func (u *Util) RCVec(vecSize uint64) []uint64 {
 	}
 
 	for i := 0; i < T; i++ {
-		rc[i] = u.generateRandomFieldElement(true)
+		rc[i] = u.GenerateRandomFieldElement(true)
 	}
 	for i := vecSize; i < vecSize+T; i++ {
-		rc[i] = u.generateRandomFieldElement(true)
+		rc[i] = u.GenerateRandomFieldElement(true)
 	}
 	return rc
 }
@@ -106,12 +106,12 @@ func (u *Util) RCVec(vecSize uint64) []uint64 {
 func (u *Util) getRandomVector(allowZero bool) []uint64 {
 	rc := make([]uint64, T)
 	for i := uint16(0); i < uint16(T); i++ {
-		rc[i] = u.generateRandomFieldElement(allowZero)
+		rc[i] = u.GenerateRandomFieldElement(allowZero)
 	}
 	return rc
 }
 
-func (u *Util) generateRandomFieldElement(allowZero bool) uint64 {
+func (u *Util) GenerateRandomFieldElement(allowZero bool) uint64 {
 	var randomBytes [8]byte
 	for {
 		if _, err := u.shake128_.Read(randomBytes[:]); err != nil {
@@ -152,8 +152,8 @@ func (u *Util) linearLayer() {
 	u.Matmul(&u.state1_)
 	u.Matmul(&u.state2_)
 
-	u.addRc(&u.state1_)
-	u.addRc(&u.state2_)
+	u.AddRc(&u.state1_)
+	u.AddRc(&u.state2_)
 
 	u.Mix()
 }
@@ -187,12 +187,27 @@ func (u *Util) MatmulBy(state *Block, vec []uint64) {
 }
 
 // + cij
-func (u *Util) addRc(state *Block) {
+func (u *Util) AddRc(state *Block) {
 	for i := 0; i < T; i++ {
-		randomFE := u.generateRandomFieldElement(true)
+		randomFE := u.GenerateRandomFieldElement(true)
 
 		currentState := big.NewInt(int64(state[i]))
 		randomFEInt := big.NewInt(int64(randomFE))
+
+		modulus := big.NewInt(int64(u.modulus))
+		currentState.Add(currentState, randomFEInt)
+		currentState.Mod(currentState, modulus)
+
+		state[i] = currentState.Uint64()
+	}
+}
+
+// todo(fedejinich) refactor AddRc to use this
+// + cij
+func (u *Util) AddRcBy(state *Block, randomFEVec []uint64) {
+	for i := 0; i < T; i++ {
+		currentState := big.NewInt(int64(state[i]))
+		randomFEInt := big.NewInt(int64(randomFEVec[i]))
 
 		modulus := big.NewInt(int64(u.modulus))
 		currentState.Add(currentState, randomFEInt)

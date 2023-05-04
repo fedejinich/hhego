@@ -48,10 +48,6 @@ func TestSingleParty(t *testing.T) {
 }
 
 func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree, secLevel, matrixSize, bsgN1, bsgN2 uint64, useBsGs bool) {
-
-	fmt.Printf("Num matrices = %d\n", pasta.NumMatmulsSquares)
-	fmt.Printf("N = %d\n", matrixSize)
-
 	inputVector := plaintext
 
 	pastaCipher := pasta.NewPasta(secretKey, plainMod, P)
@@ -63,7 +59,8 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 		CipherSize: int(P.CipherSize),
 		Modulus:    int(plainMod),
 	}
-	bfvCipher, bfvEncoder, bfvParams, bfvUtil, rem := newBFVCipher(t, pastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs)
+	bfvCipher, bfvEncoder, bfvParams, bfvUtil, rem := newBFVCipher(t, pastaParams, modDegree, secLevel,
+		matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 
 	// homomorphically encrypt secret key
 	ciphSec := bfvCipher.EncryptPastaSecretKey(secretKey)
@@ -88,21 +85,29 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 	decrypted := bfvCipher.DecryptPacked(&transciphered, matrixSize)
 	if !util.EqualSlices(decrypted, inputVector) {
 		t.Errorf("decrypted a different vector")
+		fmt.Printf("matrixSize = %d\n", matrixSize)
+		fmt.Printf("plainMod = %d\n", plainMod)
+		fmt.Printf("secLevel = %d\n", secLevel)
+		//fmt.Printf("bsgsN1 = %d\n", bsgN1)
+		//fmt.Printf("bsgsN2 = %d\n", bsgN2)
+		//fmt.Printf("useBsGs = %v\n", useBsGs)
 	}
 }
 
 func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, modDegree, plainSize, matrixSize, bsGsN1,
-	bsGsN2 uint64, useBsGs bool) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters, hhegobfv.Util, uint64) {
+	bsGsN2 uint64, useBsGs bool, plainMod uint64) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters, hhegobfv.Util, uint64) {
 
 	// set bfv params
 	var customParams bfv.ParametersLiteral
 	if modDegree == uint64(math.Pow(2, 15)) {
 		fmt.Println("polynomial modDegree = 2^15 (32768)")
-		//customParams = hhegobfv.CustomBFVParams
-		customParams = bfv.PN15QP880
+		//customParams = bfv.PN15QP880
+		customParams = bfv.PN15QP827pq
+		customParams.T = plainMod
 	} else {
 		t.Errorf("polynomial modDegree not supported (modDegree)")
 	}
+
 	// BFV parameters (128 bit security)
 	bfvParams, err := bfv.NewParametersFromLiteral(customParams) // post-quantum params
 	if err != nil {

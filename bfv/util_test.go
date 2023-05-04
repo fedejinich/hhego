@@ -55,14 +55,13 @@ func TestUtil(t *testing.T) {
 			pastaUtil.MatmulBy(s2, r2)
 			ct = bfvUtil.Matmul(ct, mat1, mat2, uint64(BfvHalfSlots*2), uint64(BfvHalfSlots))
 
-			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
-			if !util.EqualSlices(decrypted, toVec(s1)) {
+			state1 := bfv.DecryptPacked(ct, uint64(len(s1)))
+			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
 
-			decrypted2 := bfv.DecryptPacked(ct, uint64(BfvHalfSlots+pasta.T))
-			decrypted2 = decrypted2[BfvHalfSlots:]
-			if !util.EqualSlices(decrypted2, toVec(s2)) {
+			state2 := bfv.DecryptPacked(ct, uint64(BfvHalfSlots+pasta.T))[BfvHalfSlots:]
+			if !util.EqualSlices(state2, toVec(s2)) { // assert for the 2nd pasta branch
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
 		})
@@ -299,11 +298,9 @@ func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluato
 func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {
 	galEl := parameters.GaloisElementForColumnRotationBy(-1)
 	galEl2 := parameters.GaloisElementForRowRotation()
-	els := []uint64{galEl, galEl2}
+	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T) // useful for MatMulTest
+	els := []uint64{galEl, galEl2, galEl3}
 
-	// useful for MatMulTest
-	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T)
-	els = append(els, galEl3)
 	for k := 0; k < BsgsN2; k++ {
 		els = append(els, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
 	}

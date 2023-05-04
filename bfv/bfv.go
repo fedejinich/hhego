@@ -29,16 +29,6 @@ type BFVCipher struct {
 	halfslots   uint64 // given by slots // todo(fedejinich) remove this field, it's unnecessary
 }
 
-var CustomBFVParams = bfv.ParametersLiteral{
-	LogN: 15, // 2^15 = 32768
-	Q: []uint64{0x7fffffffe90001, 0x7fffffffbf0001, 0x7fffffffbd0001, 0x7fffffffba0001, 0x7fffffffaa0001,
-		0x7fffffffa50001, 0x7fffffff9f0001, 0x7fffffff7e0001, 0x7fffffff770001, 0x7fffffff380001,
-		0x7fffffff330001, 0x7fffffff2d0001, 0x7fffffff170001, 0x7fffffff150001, 0x7ffffffef00001,
-		0xfffffffff70001}, // same SEAL coeff_modulus (Total bit count: 881 = 15 * 55 + 56)
-	//P: []uint64{}, // todo(fedejinich) SEAL uses this as expand_mod_chain
-	T: 65537,
-}
-
 func NewBFVCipher(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder,
 	pastaParams *PastaParams, keygen rlwe.KeyGenerator, slots, halfslots uint64) BFVCipher {
 	return BFVCipher{

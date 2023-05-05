@@ -265,13 +265,13 @@ func toVec(b *pasta.Block) []uint64 {
 	return v
 }
 
-func newPastaUtil(modulus uint64) (pasta.Util, BFVPastaParams) {
+func newPastaUtil(modulus uint64) (pasta.Util, BfvPastaParams) {
 	rounds := 3
-	return pasta.NewUtil(secretKey(), modulus, rounds), BFVPastaParams{rounds, 128,
+	return pasta.NewUtil(secretKey(), modulus, rounds), BfvPastaParams{rounds, 128,
 		int(modulus)}
 }
 
-func newBfv(pastaParams BFVPastaParams, modulus uint64) (BFVCipher, Util, bfv2.Parameters) {
+func newBfv(pastaParams BfvPastaParams, modulus uint64) (BFV, Util, bfv2.Parameters) {
 	// set bfv params
 	var params = bfv2.PN15QP880
 	params.T = modulus
@@ -291,8 +291,8 @@ func newBfv(pastaParams BFVPastaParams, modulus uint64) (BFVCipher, Util, bfv2.P
 }
 
 func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluator bfv2.Evaluator,
-	encoder bfv2.Encoder, pastaParams *BFVPastaParams, keygen rlwe.KeyGenerator) BFVCipher {
-	return NewBFVCipher(bfvParams, secretKey, evaluator, encoder, pastaParams, keygen, 0, 0)
+	encoder bfv2.Encoder, pastaParams *BfvPastaParams, keygen rlwe.KeyGenerator) BFV {
+	return NewBFV(bfvParams, secretKey, evaluator, encoder, pastaParams, keygen, 0, 0)
 }
 
 func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {

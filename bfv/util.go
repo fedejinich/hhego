@@ -28,7 +28,7 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 	return Util{bfvParams, encoder, evaluator, keygen, secretKey}
 }
 
-func NewUtilByCipher(bfvCipher BFVCipher, secretKey rlwe.SecretKey) Util {
+func NewUtilByCipher(bfvCipher BFV, secretKey rlwe.SecretKey) Util {
 	return NewUtil(bfvCipher.bfvParams, bfvCipher.Encoder,
 		bfvCipher.Evaluator, bfvCipher.Keygen, secretKey)
 }

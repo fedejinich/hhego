@@ -26,10 +26,6 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 	return Util{bfvParams, encoder, evaluator, keygen}
 }
 
-func NewUtilByCipher(bfvCipher BFV) Util {
-	return NewUtil(bfvCipher.Params, bfvCipher.Encoder, bfvCipher.Evaluator, bfvCipher.Keygen)
-}
-
 func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) *rlwe.Ciphertext {
 	roundConstants := bfv.NewPlaintext(u.bfvParams, state.Level())
 	u.encoder.Encode(rc, roundConstants)

@@ -54,7 +54,7 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 	pastaCipher := pasta.NewPasta(secretKey, plainMod, PastaParams)
 
 	// create bfv cipher
-	bfvPastaParams := hhegobfv.BfvPastaParams{
+	bfvPastaParams := hhegobfv.PastaParams{
 		PastaRounds:         int(PastaParams.Rounds),
 		PastaCiphertextSize: int(PastaParams.CiphertextSize),
 		Modulus:             int(plainMod),
@@ -83,7 +83,7 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 	}
 }
 
-func NewTestBFV(t *testing.T, pastaParams hhegobfv.BfvPastaParams, modDegree, plainSize, matrixSize, bsGsN1,
+func NewTestBFV(t *testing.T, pastaParams hhegobfv.PastaParams, modDegree, plainSize, matrixSize, bsGsN1,
 	bsGsN2 uint64, useBsGs bool, plainMod uint64) hhegobfv.BFV {
 
 	// set bfv params
@@ -110,7 +110,7 @@ func NewTestBFV(t *testing.T, pastaParams hhegobfv.BfvPastaParams, modDegree, pl
 		bfvUtil.Reminder(matrixSize, plainSize), *secretKey)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 
-	bfvCipher := hhegobfv.NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams, keygen, modDegree, modDegree/2,
+	bfvCipher := hhegobfv.NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, pastaParams, keygen, modDegree, modDegree/2,
 		matrixSize, plainSize)
 
 	return bfvCipher

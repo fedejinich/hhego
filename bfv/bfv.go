@@ -21,19 +21,19 @@ type BFV struct {
 	// parameters used for PASTA transciphering
 	matrixSize     uint64 // size of the pasta-bfv decryption matrix
 	plainSize      uint64 // pasta plaintext size
-	bfvPastaParams *BfvPastaParams
+	bfvPastaParams PastaParams
 	slots          uint64 // determined by the polynomial modulus degree of the encryption parameters
 	halfslots      uint64 // given by slots // todo(fedejinich) remove this field, it's unnecessary
 }
 
-type BfvPastaParams struct {
+type PastaParams struct {
 	PastaRounds         int
 	PastaCiphertextSize int
 	Modulus             int
 }
 
 func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder,
-	bfvPastaParams *BfvPastaParams, keygen rlwe.KeyGenerator, slots, halfslots, matrixSize, plainSize uint64) BFV {
+	bfvPastaParams PastaParams, keygen rlwe.KeyGenerator, slots, halfslots, matrixSize, plainSize uint64) BFV {
 	return BFV{
 		bfv.NewEncryptor(bfvParams, secretKey),
 		bfv.NewDecryptor(bfvParams, secretKey),

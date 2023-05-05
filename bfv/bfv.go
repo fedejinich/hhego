@@ -78,15 +78,15 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext)
 			fmt.Printf("round %d\n", r)
 			mat1 := pastaUtil.RandomMatrix()
 			mat2 := pastaUtil.RandomMatrix()
-			rc := pastaUtil.RCVec(b.halfslots)
+			rc := pastaUtil.RCVec(b.Halfslots())
 
-			state = bfvUtil.Matmul(state, mat1, mat2, b.slots, b.halfslots)
+			state = bfvUtil.Matmul(state, mat1, mat2, b.slots, b.Halfslots())
 			state = bfvUtil.AddRc(state, rc)
 			state = bfvUtil.Mix(state)
 			if r == b.bfvPastaParams.PastaRounds {
 				state = bfvUtil.SboxCube(state)
 			} else {
-				state = bfvUtil.SboxFeistel(state, b.halfslots)
+				state = bfvUtil.SboxFeistel(state, b.Halfslots())
 			}
 		}
 
@@ -94,9 +94,9 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext)
 
 		mat1 := pastaUtil.RandomMatrix()
 		mat2 := pastaUtil.RandomMatrix()
-		rc := pastaUtil.RCVec(b.halfslots)
+		rc := pastaUtil.RCVec(b.Halfslots())
 
-		state = bfvUtil.Matmul(state, mat1, mat2, b.slots, b.halfslots)
+		state = bfvUtil.Matmul(state, mat1, mat2, b.slots, b.Halfslots())
 
 		state = bfvUtil.AddRc(state, rc)
 		state = bfvUtil.Mix(state)

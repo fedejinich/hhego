@@ -114,7 +114,7 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext)
 	return b.postProcess(result, bfvUtil)
 }
 
-// postProcess creates a masking vector (if needed) and flattens tran
+// postProcess creates a masking vector (if needed) and flattens transciphered pasta blocks into one ciphertext
 func (b *BFV) postProcess(decomp []rlwe.Ciphertext, bfvUtil Util) rlwe.Ciphertext {
 	reminder := b.Util.Reminder(b.matrixSize, b.plainSize)
 
@@ -126,7 +126,14 @@ func (b *BFV) postProcess(decomp []rlwe.Ciphertext, bfvUtil Util) rlwe.Ciphertex
 		decomp = bfvUtil.Mask(decomp, mask, b.Params, b.Encoder, b.Evaluator)
 	}
 
-	return bfvUtil.Flatten(decomp, pasta.PlaintextSize, b.Evaluator)
+	// flatten ciphertexts
+	ciphertext := decomp[0]
+	for i := 1; i < len(decomp); i++ {
+		tmp := b.Evaluator.RotateColumnsNew(&decomp[i], -(i * int(b.plainSize)))
+		ciphertext = *b.Evaluator.AddNew(&ciphertext, tmp)
+	}
+
+	return ciphertext
 }
 
 func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {
@@ -153,5 +160,5 @@ func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
 }
 
 func (b *BFV) Halfslots() uint64 {
-	return b.halfslots // todo(fedejinich) it should be calcualted, refactor this ugly thing
+	return b.slots / 2
 }

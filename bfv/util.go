@@ -129,16 +129,6 @@ func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, hal
 	return sum
 }
 
-func (u *Util) Flatten(decomp []rlwe.Ciphertext, plainSize int, evaluator bfv.Evaluator) rlwe.Ciphertext {
-	ciphertext := decomp[0]
-	for i := 1; i < len(decomp); i++ {
-		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * plainSize))
-		ciphertext = *evaluator.AddNew(&ciphertext, tmp)
-	}
-
-	return ciphertext
-}
-
 func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator) []rlwe.Ciphertext {
 	lastIndex := len(decomp) - 1
 	last := decomp[lastIndex]
@@ -149,10 +139,10 @@ func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Paramete
 	return decomp
 }
 
-// GenerateEvaluationKeys create keys for rotations and relinearization
-func (u *Util) GenerateEvaluationKeys(matrixSize uint64, plainSize uint64, modDegree uint64, useBsGs bool,
+// EvaluationKeysForPastaTransciphering create keys for rotations and relinearization
+// todo(fedejinich) add a unit test
+func (u *Util) EvaluationKeysForPastaTransciphering(matrixSize uint64, plainSize uint64, modDegree uint64, useBsGs bool,
 	bsGsN2 uint64, bsGsN1 uint64, reminder uint64, secretKey rlwe.SecretKey) rlwe.EvaluationKey {
-	// first we create the right galois indexes to define the right rotations steps (whether for columns or rows)
 
 	numBlock := int64(matrixSize / plainSize)
 	if reminder > 0 {
@@ -181,7 +171,6 @@ func (u *Util) GenerateEvaluationKeys(matrixSize uint64, plainSize uint64, modDe
 	return genEVK(gkIndices, u.bfvParams.Parameters, u.keygen, &secretKey)
 }
 
-// Reminder useful to determine if we need another extra block
 func (u *Util) Reminder(matrixSize uint64, plainSize uint64) uint64 {
 	return matrixSize % plainSize
 }

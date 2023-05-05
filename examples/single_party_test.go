@@ -106,7 +106,7 @@ func NewTestBFV(t *testing.T, pastaParams hhegobfv.PastaParams, modDegree, plain
 	secretKey, _ := keygen.GenKeyPair()
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvUtil := hhegobfv.NewUtil(bfvParams, bfvEncoder, nil, keygen)
-	evk := bfvUtil.GenerateEvaluationKeys(matrixSize, plainSize, modDegree, useBsGs, bsGsN2, bsGsN1,
+	evk := bfvUtil.EvaluationKeysForPastaTransciphering(matrixSize, plainSize, modDegree, useBsGs, bsGsN2, bsGsN1,
 		bfvUtil.Reminder(matrixSize, plainSize), *secretKey)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 

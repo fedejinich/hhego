@@ -42,7 +42,7 @@ func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.E
 		keygen,
 		bfvParams,
 		*secretKey,
-		NewUtil(bfvParams, encoder, evaluator, keygen, *secretKey),
+		NewUtil(bfvParams, encoder, evaluator, keygen),
 		matrixSize,
 		plainSize,
 		bfvPastaParams,
@@ -57,7 +57,7 @@ func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
 
 func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) rlwe.Ciphertext {
 	pastaUtil := pasta.NewUtil(nil, uint64(b.bfvPastaParams.Modulus), b.bfvPastaParams.PastaRounds)
-	bfvUtil := NewUtil(b.Params, b.Encoder, b.Evaluator, b.Keygen, b.secretKey)
+	bfvUtil := NewUtil(b.Params, b.Encoder, b.Evaluator, b.Keygen)
 
 	encryptedMessageLength := float64(len(encryptedMessage))
 

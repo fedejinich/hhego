@@ -20,17 +20,14 @@ type Util struct {
 	encoder   bfv.Encoder
 	evaluator bfv.Evaluator
 	keygen    rlwe.KeyGenerator
-	secretKey rlwe.SecretKey
 }
 
-func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator, keygen rlwe.KeyGenerator,
-	secretKey rlwe.SecretKey) Util {
-	return Util{bfvParams, encoder, evaluator, keygen, secretKey}
+func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator, keygen rlwe.KeyGenerator) Util {
+	return Util{bfvParams, encoder, evaluator, keygen}
 }
 
-func NewUtilByCipher(bfvCipher BFV, secretKey rlwe.SecretKey) Util {
-	return NewUtil(bfvCipher.Params, bfvCipher.Encoder,
-		bfvCipher.Evaluator, bfvCipher.Keygen, secretKey)
+func NewUtilByCipher(bfvCipher BFV) Util {
+	return NewUtil(bfvCipher.Params, bfvCipher.Encoder, bfvCipher.Evaluator, bfvCipher.Keygen)
 }
 
 func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) *rlwe.Ciphertext {
@@ -158,7 +155,7 @@ func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Paramete
 
 // GenerateEvaluationKeys create keys for rotations and relinearization
 func (u *Util) GenerateEvaluationKeys(matrixSize uint64, plainSize uint64, modDegree uint64, useBsGs bool,
-	bsGsN2 uint64, bsGsN1 uint64, reminder uint64) rlwe.EvaluationKey {
+	bsGsN2 uint64, bsGsN1 uint64, reminder uint64, secretKey rlwe.SecretKey) rlwe.EvaluationKey {
 	// first we create the right galois indexes to define the right rotations steps (whether for columns or rows)
 
 	numBlock := int64(matrixSize / plainSize)
@@ -185,7 +182,7 @@ func (u *Util) GenerateEvaluationKeys(matrixSize uint64, plainSize uint64, modDe
 	}
 
 	// finally we create the right evaluation set (rotation & reliniarization keys)
-	return genEVK(gkIndices, u.bfvParams.Parameters, u.keygen, &u.secretKey)
+	return genEVK(gkIndices, u.bfvParams.Parameters, u.keygen, &secretKey)
 }
 
 // Reminder useful to determine if we need another extra block

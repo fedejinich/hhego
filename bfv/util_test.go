@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-var P = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlainSize: pasta.PlaintextSize,
-	CipherSize: pasta.CiphertextSize, Rounds: 3}
+var P = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlaintextSize: pasta.PlaintextSize,
+	CiphertextSize: pasta.CiphertextSize, Rounds: 3}
 
 type UtilTestCase struct {
 	modulus uint64
@@ -265,13 +265,13 @@ func toVec(b *pasta.Block) []uint64 {
 	return v
 }
 
-func newPastaUtil(modulus uint64) (pasta.Util, PastaParams) {
+func newPastaUtil(modulus uint64) (pasta.Util, BFVPastaParams) {
 	rounds := 3
-	return pasta.NewUtil(secretKey(), modulus, rounds), PastaParams{rounds, 128,
+	return pasta.NewUtil(secretKey(), modulus, rounds), BFVPastaParams{rounds, 128,
 		int(modulus)}
 }
 
-func newBfv(pastaParams PastaParams, modulus uint64) (BFVCipher, Util, bfv2.Parameters) {
+func newBfv(pastaParams BFVPastaParams, modulus uint64) (BFVCipher, Util, bfv2.Parameters) {
 	// set bfv params
 	var params = bfv2.PN15QP880
 	params.T = modulus
@@ -291,7 +291,7 @@ func newBfv(pastaParams PastaParams, modulus uint64) (BFVCipher, Util, bfv2.Para
 }
 
 func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluator bfv2.Evaluator,
-	encoder bfv2.Encoder, pastaParams *PastaParams, keygen rlwe.KeyGenerator) BFVCipher {
+	encoder bfv2.Encoder, pastaParams *BFVPastaParams, keygen rlwe.KeyGenerator) BFVCipher {
 	return NewBFVCipher(bfvParams, secretKey, evaluator, encoder, pastaParams, keygen, 0, 0)
 }
 

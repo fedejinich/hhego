@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-var P = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlainSize: pasta.PlaintextSize,
-	CipherSize: pasta.CiphertextSize, Rounds: 3}
+var PastaParams = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlaintextSize: pasta.PlaintextSize,
+	CiphertextSize: pasta.CiphertextSize, Rounds: 3}
 
 const (
 	PackedUseCase = iota
@@ -47,19 +47,20 @@ func TestSingleParty(t *testing.T) {
 
 }
 
-func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree, secLevel, matrixSize, bsgN1, bsgN2 uint64, useBsGs bool) {
+func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree, secLevel, matrixSize,
+	bsgN1, bsgN2 uint64, useBsGs bool) {
 	inputVector := plaintext
 
-	pastaCipher := pasta.NewPasta(secretKey, plainMod, P)
+	pastaCipher := pasta.NewPasta(secretKey, plainMod, PastaParams)
 	ciph := pastaCipher.Encrypt(inputVector)
 
 	// todo(fedejinich) this will be refactored
-	pastaParams := hhegobfv.PastaParams{
-		Rounds:     int(P.Rounds),
-		CipherSize: int(P.CipherSize),
-		Modulus:    int(plainMod),
+	bfvPastaParams := hhegobfv.BFVPastaParams{
+		PastaRounds:         int(PastaParams.Rounds),
+		PastaCiphertextSize: int(PastaParams.CiphertextSize),
+		Modulus:             int(plainMod),
 	}
-	bfvCipher, bfvEncoder, bfvParams, bfvUtil, rem := newBFVCipher(t, pastaParams, modDegree, secLevel,
+	bfvCipher, bfvEncoder, bfvParams, bfvUtil, rem := newBFVCipher(t, bfvPastaParams, modDegree, secLevel,
 		matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 
 	// homomorphically encrypt secret key
@@ -94,7 +95,7 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 	}
 }
 
-func newBFVCipher(t *testing.T, pastaParams hhegobfv.PastaParams, modDegree, plainSize, matrixSize, bsGsN1,
+func newBFVCipher(t *testing.T, pastaParams hhegobfv.BFVPastaParams, modDegree, plainSize, matrixSize, bsGsN1,
 	bsGsN2 uint64, useBsGs bool, plainMod uint64) (hhegobfv.BFVCipher, bfv.Encoder, bfv.Parameters, hhegobfv.Util, uint64) {
 
 	// set bfv params

@@ -29,7 +29,7 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) *rlwe.Ciphertext {
 	roundConstants := bfv.NewPlaintext(u.bfvParams, state.Level())
 	u.encoder.Encode(rc, roundConstants)
-	return u.evaluator.AddNew(state, roundConstants)
+	return u.evaluator.AddNew(state, roundConstants) // ct + pt
 }
 
 func (u *Util) Mix(state *rlwe.Ciphertext) *rlwe.Ciphertext {
@@ -41,10 +41,10 @@ func (u *Util) Mix(state *rlwe.Ciphertext) *rlwe.Ciphertext {
 
 func (u *Util) SboxCube(state *rlwe.Ciphertext) *rlwe.Ciphertext {
 	s := state.CopyNew()
-	state = u.evaluator.MulNew(state, state)  // ^ 2
-	state = u.evaluator.RelinearizeNew(state) // ciphertext X ciphertext -> relinearization
-	state = u.evaluator.MulNew(state, s)      // ^ 3
-	state = u.evaluator.RelinearizeNew(state) // ciphertext X ciphertext -> relinearization
+	state = u.evaluator.MulNew(state, state) // ^ 2 ct x ct -> relinearization
+	state = u.evaluator.RelinearizeNew(state)
+	state = u.evaluator.MulNew(state, s) // ^ 3  ct x ct -> relinearization
+	state = u.evaluator.RelinearizeNew(state)
 	return state
 }
 
@@ -66,16 +66,14 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 		maskVec[i] = 0
 	}
 	u.encoder.Encode(maskVec, mask)
-	stateRot = u.evaluator.MulNew(stateRot, mask) // no need to relinearize because it's been multiplied by a plain
-	// stateRot = 0, x_1, x_2, x_3, .... x_(t-1)
+	stateRot = u.evaluator.MulNew(stateRot, mask) // ct x pt
 
 	// square
 	state = u.evaluator.MulNew(stateRot, stateRot)
-	state = u.evaluator.RelinearizeNew(state) // needs relinearization
-	// stateRot = 0, x_1^2, x_2^2, x_3^2, .... x_(t-1)^2
+	state = u.evaluator.RelinearizeNew(state) // ct x ct -> relinearization
 
+	// add
 	result := u.evaluator.AddNew(originalState, state)
-	// state = x_1, x_1^2 + x_2, x_2^2 + x_3, x_3^2 + x_4, .... x_(t-1)^2 + x_t
 
 	return result
 }
@@ -127,16 +125,6 @@ func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, hal
 	}
 
 	return sum
-}
-
-func (u *Util) Mask(decomp []rlwe.Ciphertext, mask []uint64, params bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator) []rlwe.Ciphertext {
-	lastIndex := len(decomp) - 1
-	last := decomp[lastIndex]
-	plaintext := bfv.NewPlaintext(params, last.Level()) // halfslots
-	encoder.Encode(mask, plaintext)
-	decomp[lastIndex] = *evaluator.MulNew(&last, plaintext) // no needs relinearization
-
-	return decomp
 }
 
 // EvaluationKeysForPastaTransciphering create keys for rotations and relinearization

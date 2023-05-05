@@ -292,7 +292,8 @@ func newBfv(pastaParams BfvPastaParams, modulus uint64) (BFV, Util, bfv2.Paramet
 
 func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluator bfv2.Evaluator,
 	encoder bfv2.Encoder, pastaParams *BfvPastaParams, keygen rlwe.KeyGenerator) BFV {
-	return NewBFV(bfvParams, secretKey, evaluator, encoder, pastaParams, keygen, 0, 0)
+	return NewBFV(bfvParams, secretKey, evaluator, encoder, pastaParams, keygen,
+		0, 0, 0, 0)
 }
 
 func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {

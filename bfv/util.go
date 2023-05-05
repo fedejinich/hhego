@@ -188,6 +188,11 @@ func (u *Util) GenerateEvaluationKeys(matrixSize uint64, plainSize uint64, modDe
 	return genEVK(gkIndices, u.bfvParams.Parameters, u.keygen, &u.secretKey)
 }
 
+// Reminder useful to determine if we need another extra block
+func (u *Util) Reminder(matrixSize uint64, plainSize uint64) uint64 {
+	return matrixSize % plainSize
+}
+
 func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) rlwe.EvaluationKey {
 	galEls := make([]uint64, len(gkIndices))
 	for i, rot := range gkIndices {

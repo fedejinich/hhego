@@ -49,41 +49,30 @@ func TestSingleParty(t *testing.T) {
 
 func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree, secLevel, matrixSize,
 	bsgN1, bsgN2 uint64, useBsGs bool) {
-	inputVector := plaintext
 
+	// create pasta cipher
 	pastaCipher := pasta.NewPasta(secretKey, plainMod, PastaParams)
-	ciph := pastaCipher.Encrypt(inputVector)
 
+	// create bfv cipher
 	bfvPastaParams := hhegobfv.BfvPastaParams{
 		PastaRounds:         int(PastaParams.Rounds),
 		PastaCiphertextSize: int(PastaParams.CiphertextSize),
 		Modulus:             int(plainMod),
 	}
-	bfvCipher, _, _, bfvUtil, rem := newBFVCipher(t, bfvPastaParams, modDegree, secLevel,
-		matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv := NewTestBFV(t, bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
+	pastaCiphertext := pastaCipher.Encrypt(plaintext)
 
 	// homomorphically encrypt secret key
-	ciphSec := bfvCipher.EncryptPastaSecretKey(secretKey)
+	pastaSKCiphertext := bfv.EncryptPastaSecretKey(secretKey)
 
-	// transciphering from PASTA to BFV
-	decomp := bfvCipher.Decomp(ciph, ciphSec) // each element represents a pasta decrypted block
+	// move from PASTA ciphertext to BFV ciphertext
+	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext)
 
-	// postprocessing
-	if rem != 0 {
-		mask := make([]uint64, rem) // create a 1s mask
-		for i := range mask {
-			mask[i] = 1
-		}
-		decomp = bfvUtil.Mask(decomp, mask, bfvCipher.Params, bfvCipher.Encoder, bfvCipher.Evaluator)
-	}
-
-	transciphered := bfvUtil.Flatten(decomp, pasta.PlaintextSize, bfvCipher.Evaluator)
-
-	// homomorphically evaluation todo(fedejinich) implement this
+	// homomorphically evaluation
 
 	// final decrypt
-	decrypted := bfvCipher.DecryptPacked(&transciphered, matrixSize)
-	if !util.EqualSlices(decrypted, inputVector) {
+	decrypted := bfv.DecryptPacked(&bfvCiphertext, matrixSize)
+	if !util.EqualSlices(decrypted, plaintext) {
 		t.Errorf("decrypted a different vector")
 		fmt.Printf("matrixSize = %d\n", matrixSize)
 		fmt.Printf("plainMod = %d\n", plainMod)
@@ -94,8 +83,8 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 	}
 }
 
-func newBFVCipher(t *testing.T, pastaParams hhegobfv.BfvPastaParams, modDegree, plainSize, matrixSize, bsGsN1,
-	bsGsN2 uint64, useBsGs bool, plainMod uint64) (hhegobfv.BFV, bfv.Encoder, bfv.Parameters, hhegobfv.Util, uint64) {
+func NewTestBFV(t *testing.T, pastaParams hhegobfv.BfvPastaParams, modDegree, plainSize, matrixSize, bsGsN1,
+	bsGsN2 uint64, useBsGs bool, plainMod uint64) hhegobfv.BFV {
 
 	// set bfv params
 	var customParams bfv.ParametersLiteral
@@ -117,13 +106,13 @@ func newBFVCipher(t *testing.T, pastaParams hhegobfv.BfvPastaParams, modDegree, 
 	secretKey, _ := keygen.GenKeyPair()
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	bfvUtil := hhegobfv.NewUtil(bfvParams, bfvEncoder, nil, keygen, *secretKey)
-	reminder := matrixSize % plainSize // useful to determine if we need another extra block
-	evk := bfvUtil.GenerateEvaluationKeys(matrixSize, plainSize, modDegree, useBsGs, bsGsN2, bsGsN1, reminder)
+	evk := bfvUtil.GenerateEvaluationKeys(matrixSize, plainSize, modDegree, useBsGs, bsGsN2, bsGsN1, bfvUtil.Reminder(matrixSize, plainSize))
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 
-	bfvCipher := hhegobfv.NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams, keygen, modDegree, modDegree/2)
+	bfvCipher := hhegobfv.NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, &pastaParams, keygen, modDegree, modDegree/2,
+		matrixSize, plainSize)
 
-	return bfvCipher, bfvEncoder, bfvParams, bfvUtil, reminder
+	return bfvCipher
 }
 
 func testCases() []TestCase {

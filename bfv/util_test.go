@@ -42,7 +42,7 @@ func TestUtil(t *testing.T) {
 				p[i+BfvHalfSlots] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel())
+			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
 			ct := bfv.Encrypt(pt)
 
 			r1 := pastaUtil.GetRandomVector(false)
@@ -81,7 +81,7 @@ func TestUtil(t *testing.T) {
 				p[i+BfvHalfSlots] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel())
+			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
 			ct := bfv.Encrypt(pt)
 
 			pastaUtil.InitShake(uint64(123456789), 0)
@@ -119,7 +119,7 @@ func TestUtil(t *testing.T) {
 				p[i+BfvHalfSlots] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel()) // todo(fedejinich) this encoding is wrong
+			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel()) // todo(fedejinich) this encoding is wrong
 			ct := bfv.Encrypt(pt)
 
 			// test Mix
@@ -149,7 +149,7 @@ func TestUtil(t *testing.T) {
 				p[i+BfvHalfSlots] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel())
+			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
@@ -185,7 +185,7 @@ func TestUtil(t *testing.T) {
 				p[i+BfvHalfSlots] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.bfvParams.MaxLevel())
+			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
@@ -212,7 +212,7 @@ func TestUtil(t *testing.T) {
 			vec := testVec()
 
 			// basic bfv decrypt
-			pt := bfv.Encoder.EncodeNew(toVec(vec), bfv.bfvParams.MaxLevel())
+			pt := bfv.Encoder.EncodeNew(toVec(vec), bfv.Params.MaxLevel())
 			ct := bfv.Encrypt(pt)
 			d := bfv.DecryptPacked(ct, uint64(len(vec)))
 			if !util.EqualSlices(d, toVec(vec)) {

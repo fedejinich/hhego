@@ -21,12 +21,12 @@ type BFV struct {
 	Evaluator bfv.Evaluator
 	Encoder   bfv.Encoder
 	Keygen    rlwe.KeyGenerator
-	bfvParams bfv.Parameters
+	Params    bfv.Parameters
 	secretKey rlwe.SecretKey
 
-	pastaParams *BfvPastaParams
-	slots       uint64 // determined by the polynomial modulus degree of the encryption parameters
-	halfslots   uint64 // given by slots // todo(fedejinich) remove this field, it's unnecessary
+	bfvPastaParams *BfvPastaParams
+	slots          uint64 // determined by the polynomial modulus degree of the encryption parameters
+	halfslots      uint64 // given by slots // todo(fedejinich) remove this field, it's unnecessary
 }
 
 func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder,
@@ -54,10 +54,10 @@ func (bfv *BFV) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) []
 	size := len(encryptedMessage)
 
 	// calculates the amount of PASTA blocks needed
-	numBlock := math.Ceil(float64(size) / float64(bfv.pastaParams.PastaCiphertextSize)) // todo(fedejinich) float?
+	numBlock := math.Ceil(float64(size) / float64(bfv.bfvPastaParams.PastaCiphertextSize)) // todo(fedejinich) float?
 
-	pastaUtil := pasta.NewUtil(nil, uint64(bfv.pastaParams.Modulus), bfv.pastaParams.PastaRounds)
-	bfvUtil := NewUtil(bfv.bfvParams, bfv.Encoder, bfv.Evaluator, bfv.Keygen,
+	pastaUtil := pasta.NewUtil(nil, uint64(bfv.bfvPastaParams.Modulus), bfv.bfvPastaParams.PastaRounds)
+	bfvUtil := NewUtil(bfv.Params, bfv.Encoder, bfv.Evaluator, bfv.Keygen,
 		bfv.secretKey)
 
 	result := make([]rlwe.Ciphertext, int(numBlock))
@@ -70,7 +70,7 @@ func (bfv *BFV) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) []
 
 		fmt.Printf("block %d\n", b)
 
-		for r := 1; r <= bfv.pastaParams.PastaRounds; r++ {
+		for r := 1; r <= bfv.bfvPastaParams.PastaRounds; r++ {
 			fmt.Printf("round %d\n", r)
 			mat1 := pastaUtil.RandomMatrix()
 			//mat1 := fixedMatrix1()
@@ -81,7 +81,7 @@ func (bfv *BFV) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) []
 			state = bfvUtil.Matmul(state, mat1, mat2, bfv.slots, bfv.halfslots)
 			state = bfvUtil.AddRc(state, rc)
 			state = bfvUtil.Mix(state)
-			if r == bfv.pastaParams.PastaRounds {
+			if r == bfv.bfvPastaParams.PastaRounds {
 				state = bfvUtil.SboxCube(state)
 			} else {
 				state = bfvUtil.SboxFeistel(state, bfv.halfslots)
@@ -100,12 +100,12 @@ func (bfv *BFV) Decomp(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) []
 		state = bfvUtil.Mix(state)
 
 		// add cipher
-		//offset := b * bfv.pastaParams.CiphertextSize
+		//offset := b * bfv.bfvPastaParams.CiphertextSize
 		//ciphertextTemp := encryptedMessage[offset:int(size)] // todo(fedejinich) not completely sure about this
 		//cipherTmp = append(cipherTmp,
-		//	encryptedMessage[b*bfv.pastaParams.CiphertextSize:min(int64((b+1)*bfv.pastaParams.CiphertextSize), int64(size))]...)
-		start := 0 + (b * bfv.pastaParams.PastaCiphertextSize)
-		end := math.Min(float64((b+1)*bfv.pastaParams.PastaCiphertextSize), float64(size))
+		//	encryptedMessage[b*bfv.bfvPastaParams.CiphertextSize:min(int64((b+1)*bfv.bfvPastaParams.CiphertextSize), int64(size))]...)
+		start := 0 + (b * bfv.bfvPastaParams.PastaCiphertextSize)
+		end := math.Min(float64((b+1)*bfv.bfvPastaParams.PastaCiphertextSize), float64(size))
 		cipherTmp := encryptedMessage[start:int(end)]
 
 		plaintext := bfv.Encoder.EncodeNew(cipherTmp, state.Level())
@@ -140,7 +140,7 @@ func (bfv *BFV) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
 		keyTmp[i] = secretKey[i]
 		keyTmp[i+bfv.Halfslots()] = secretKey[i+pasta.T]
 	}
-	plaintext := bfv.Encoder.EncodeNew(keyTmp, bfv.bfvParams.MaxLevel())
+	plaintext := bfv.Encoder.EncodeNew(keyTmp, bfv.Params.MaxLevel())
 
 	return bfv.Encrypt(plaintext)
 }

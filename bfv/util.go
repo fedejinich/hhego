@@ -29,7 +29,7 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 }
 
 func NewUtilByCipher(bfvCipher BFV, secretKey rlwe.SecretKey) Util {
-	return NewUtil(bfvCipher.bfvParams, bfvCipher.Encoder,
+	return NewUtil(bfvCipher.Params, bfvCipher.Encoder,
 		bfvCipher.Evaluator, bfvCipher.Keygen, secretKey)
 }
 
@@ -306,7 +306,7 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 //			diag[j] = tmp[j-halfslots]
 //		}
 //
-//		r := bfv.NewPlaintext(u.bfvParams, state.Level())
+//		r := bfv.NewPlaintext(u.Params, state.Level())
 //		u.encoder.Encode(diag, r)
 //		matrix[i] = *r // push back
 //		aux[i] = diag  // for debug todo(fedejinich) remove this
@@ -338,7 +338,7 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 //			outerSum = *innerSum
 //		} else {
 //			if outerSum.Value == nil { // todo(fedejinich) this is not ideal
-//				outerSum = *rlwe.NewCiphertext(u.bfvParams.Parameters, innerSum.Degree(), innerSum.Level())
+//				outerSum = *rlwe.NewCiphertext(u.Params.Parameters, innerSum.Degree(), innerSum.Level())
 //			}
 //			u.evaluator.RotateColumns(innerSum, -k*BsgsN1, innerSum)
 //			outerSum = *u.evaluator.AddNew(&outerSum, innerSum)

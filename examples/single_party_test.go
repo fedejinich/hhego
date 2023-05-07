@@ -2,11 +2,9 @@ package examples
 
 import (
 	"fmt"
-	"github.com/tuneinsight/lattigo/v4/bfv"
 	hhegobfv "hhego/bfv"
 	"hhego/pasta"
 	"hhego/util"
-	"math"
 	"testing"
 )
 
@@ -59,7 +57,7 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 		PastaCiphertextSize: int(PastaParams.CiphertextSize),
 		Modulus:             int(plainMod),
 	}
-	bfv := NewTestBFV(t, bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv := hhegobfv.NewBFVPasta(t, bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 	pastaCiphertext := pastaCipher.Encrypt(plaintext)
 
 	// homomorphically encrypt secret key
@@ -81,39 +79,6 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 		//fmt.Printf("bsgsN2 = %d\n", bsgN2)
 		//fmt.Printf("useBsGs = %v\n", useBsGs)
 	}
-}
-
-func NewTestBFV(t *testing.T, pastaParams hhegobfv.PastaParams, modDegree, plainSize, matrixSize, bsGsN1,
-	bsGsN2 uint64, useBsGs bool, plainMod uint64) hhegobfv.BFV {
-
-	// set bfv params
-	var customParams bfv.ParametersLiteral
-	if modDegree == uint64(math.Pow(2, 15)) {
-		fmt.Println("polynomial modDegree = 2^15 (32768)")
-		//customParams = bfv.PN15QP880
-		customParams = bfv.PN15QP827pq
-		customParams.T = plainMod
-	} else {
-		t.Errorf("polynomial modDegree not supported (modDegree)")
-	}
-
-	// BFV parameters (128 bit security)
-	bfvParams, err := bfv.NewParametersFromLiteral(customParams) // post-quantum params
-	if err != nil {
-		t.Errorf("couldn't initialize bfvParams")
-	}
-	keygen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := keygen.GenKeyPair()
-	bfvEncoder := bfv.NewEncoder(bfvParams)
-	bfvUtil := hhegobfv.NewUtil(bfvParams, bfvEncoder, nil, keygen)
-	evk := bfvUtil.EvaluationKeysForPastaTransciphering(matrixSize, plainSize, modDegree, useBsGs, bsGsN2, bsGsN1,
-		bfvUtil.Reminder(matrixSize, plainSize), *secretKey)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
-
-	bfvCipher := hhegobfv.NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, pastaParams, keygen, modDegree, modDegree/2,
-		matrixSize, plainSize)
-
-	return bfvCipher
 }
 
 func testCases() []TestCase {

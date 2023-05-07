@@ -1,8 +1,6 @@
 package bfv
 
 import (
-	bfv2 "github.com/tuneinsight/lattigo/v4/bfv"
-	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"hhego/pasta"
 	"hhego/util"
 	"math"
@@ -29,7 +27,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			bfv, bfvUtil, _ := newBfv(pastaParams, tc.modulus)
+			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -68,7 +66,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_AddRc", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, bfvUtil, _ := newBfv(pastaParams, tc.modulus)
+			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -106,7 +104,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_Mix", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, bfvUtil, _ := newBfv(pastaParams, tc.modulus)
+			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -136,7 +134,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxCube", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, bfvUtil, _ := newBfv(pastaParams, tc.modulus)
+			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -172,7 +170,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxFeistel", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, bfvUtil, _ := newBfv(pastaParams, tc.modulus)
+			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -207,7 +205,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_BasicBFVDecrypt", func(t *testing.T) {
 			_, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _, _ := newBfv(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
 
 			vec := testVec()
 
@@ -269,49 +267,6 @@ func newPastaUtil(modulus uint64) (pasta.Util, PastaParams) {
 	rounds := 3
 	return pasta.NewUtil(secretKey(), modulus, rounds), PastaParams{rounds, 128,
 		int(modulus)}
-}
-
-func newBfv(pastaParams PastaParams, modulus uint64) (BFV, Util, bfv2.Parameters) {
-	// set bfv params
-	var params = bfv2.PN15QP880
-	params.T = modulus
-
-	// BFV parameters (128 bit security)
-	bfvParams, _ := bfv2.NewParametersFromLiteral(params) // post-quantum params
-	keygen := bfv2.NewKeyGenerator(bfvParams)
-	s, _ := keygen.GenKeyPair()
-
-	// generate evaluation keys
-	evk := genEvaluationKey(bfvParams.Parameters, keygen, s)
-	bfvEvaluator := bfv2.NewEvaluator(bfvParams, evk)
-	bfvEncoder := bfv2.NewEncoder(bfvParams)
-	bfvCipher := newBfvCipher(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen)
-
-	return bfvCipher, bfvCipher.Util, bfvParams
-}
-
-func newBfvCipher(bfvParams bfv2.Parameters, secretKey *rlwe.SecretKey, evaluator bfv2.Evaluator,
-	encoder bfv2.Encoder, pastaParams PastaParams, keygen rlwe.KeyGenerator) BFV {
-	return NewBFV(bfvParams, secretKey, evaluator, encoder, pastaParams, keygen,
-		0, 0, 0, 0)
-}
-
-func genEvaluationKey(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {
-	galEl := parameters.GaloisElementForColumnRotationBy(-1)
-	galEl2 := parameters.GaloisElementForRowRotation()
-	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T) // useful for MatMulTest
-	els := []uint64{galEl, galEl2, galEl3}
-
-	for k := 0; k < BsgsN2; k++ {
-		els = append(els, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
-	}
-
-	rtks := keygen.GenRotationKeys(els, key)
-
-	return rlwe.EvaluationKey{
-		Rlk:  keygen.GenRelinearizationKey(key, 1),
-		Rtks: rtks,
-	}
 }
 
 func secretKey() []uint64 {

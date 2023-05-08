@@ -109,7 +109,6 @@ func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
 
 func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) rlwe.Ciphertext {
 	pastaUtil := pasta.NewUtil(nil, uint64(b.bfvPastaParams.Modulus), b.bfvPastaParams.PastaRounds)
-	bfvUtil := NewUtil(b.Params, b.Encoder, b.Evaluator, b.Keygen)
 
 	encryptedMessageLength := float64(len(encryptedMessage))
 
@@ -132,13 +131,13 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext)
 			mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(b.Halfslots())
 
-			state = bfvUtil.Matmul(state, mat1, mat2, b.slots, b.Halfslots())
-			state = bfvUtil.AddRc(state, rc)
-			state = bfvUtil.Mix(state)
+			state = Matmul(state, mat1, mat2, b.slots, b.Halfslots(), b.Evaluator, b.Encoder, b.Params)
+			state = AddRc(state, rc, b.Encoder, b.Evaluator, b.Params)
+			state = Mix(state, b.Evaluator, b.Encoder)
 			if r == b.bfvPastaParams.PastaRounds {
-				state = bfvUtil.SboxCube(state)
+				state = SboxCube(state, b.Evaluator)
 			} else {
-				state = bfvUtil.SboxFeistel(state, b.Halfslots())
+				state = SboxFeistel(state, b.Halfslots(), b.Evaluator, b.Encoder, b.Params)
 			}
 		}
 
@@ -148,10 +147,10 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext)
 		mat2 := pastaUtil.RandomMatrix()
 		rc := pastaUtil.RCVec(b.Halfslots())
 
-		state = bfvUtil.Matmul(state, mat1, mat2, b.slots, b.Halfslots())
+		state = Matmul(state, mat1, mat2, b.slots, b.Halfslots(), b.Evaluator, b.Encoder, b.Params)
 
-		state = bfvUtil.AddRc(state, rc)
-		state = bfvUtil.Mix(state)
+		state = AddRc(state, rc, b.Encoder, b.Evaluator, b.Params)
+		state = Mix(state, b.Evaluator, b.Encoder)
 
 		// add cipher
 		start := 0 + (block * b.bfvPastaParams.PastaCiphertextSize)

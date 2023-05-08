@@ -27,7 +27,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -51,7 +51,8 @@ func TestUtil(t *testing.T) {
 			// test MatMul
 			pastaUtil.MatmulBy(s1, r1)
 			pastaUtil.MatmulBy(s2, r2)
-			ct = bfvUtil.Matmul(ct, mat1, mat2, uint64(BfvHalfSlots*2), uint64(BfvHalfSlots))
+			ct = Matmul(ct, mat1, mat2, uint64(BfvHalfSlots*2),
+				uint64(BfvHalfSlots), bfv.Evaluator, bfv.Encoder, bfv.Params)
 
 			state1 := bfv.DecryptPacked(ct, uint64(len(s1)))
 			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
@@ -66,7 +67,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_AddRc", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -86,7 +87,7 @@ func TestUtil(t *testing.T) {
 			rcVec := pastaUtil.RCVec(uint64(BfvHalfSlots))
 
 			// test AddRc
-			ct = bfvUtil.AddRc(ct, rcVec)
+			ct = AddRc(ct, rcVec, bfv.Encoder, bfv.Evaluator, bfv.Params)
 			pastaUtil.AddRcBy(s1, rcVec)
 			pastaUtil.AddRcBy(s2, rcVec[BfvHalfSlots:])
 
@@ -104,7 +105,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_Mix", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -122,7 +123,7 @@ func TestUtil(t *testing.T) {
 
 			// test Mix
 			pastaUtil.MixBy(s1, s2)
-			ct = bfvUtil.Mix(ct)
+			ct = Mix(ct, bfv.Evaluator, bfv.Encoder)
 
 			stateAfterMix := toVec(pastaUtil.State())
 			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
@@ -134,7 +135,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxCube", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -153,7 +154,7 @@ func TestUtil(t *testing.T) {
 			// test SboxCube
 			pastaUtil.SboxCube(s1)
 			pastaUtil2.SboxCube(s2)
-			ct = bfvUtil.SboxCube(ct)
+			ct = SboxCube(ct, bfv.Evaluator)
 
 			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
 			if !util.EqualSlices(decrypted, toVec(s1)) {
@@ -170,7 +171,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxFeistel", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, bfvUtil := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -187,7 +188,7 @@ func TestUtil(t *testing.T) {
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
-			ct = bfvUtil.SboxFeistel(ct, uint64(BfvHalfSlots))
+			ct = SboxFeistel(ct, uint64(BfvHalfSlots), bfv.Evaluator, bfv.Encoder, bfv.Params)
 			pastaUtil.SboxFeistel(s1)
 			pastaUtil2.SboxFeistel(s2)
 

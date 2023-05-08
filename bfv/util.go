@@ -26,36 +26,37 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 	return Util{bfvParams, encoder, evaluator, keygen}
 }
 
-func (u *Util) AddRc(state *rlwe.Ciphertext, rc []uint64) *rlwe.Ciphertext {
-	roundConstants := bfv.NewPlaintext(u.bfvParams, state.Level())
-	u.encoder.Encode(rc, roundConstants)
-	return u.evaluator.AddNew(state, roundConstants) // ct + pt
+func AddRc(state *rlwe.Ciphertext, rc []uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) *rlwe.Ciphertext {
+	roundConstants := bfv.NewPlaintext(bfvParams, state.Level())
+	encoder.Encode(rc, roundConstants)
+	return evaluator.AddNew(state, roundConstants) // ct + pt
 }
 
-func (u *Util) Mix(state *rlwe.Ciphertext) *rlwe.Ciphertext {
+func Mix(state *rlwe.Ciphertext, evaluator bfv.Evaluator, encoder bfv.Encoder) *rlwe.Ciphertext {
 	stateOriginal := state.CopyNew()
-	tmp := u.evaluator.RotateRowsNew(state)
-	tmp = u.evaluator.AddNew(tmp, stateOriginal)
-	return u.evaluator.AddNew(stateOriginal, tmp)
+	tmp := evaluator.RotateRowsNew(state)
+	tmp = evaluator.AddNew(tmp, stateOriginal)
+	return evaluator.AddNew(stateOriginal, tmp)
 }
 
-func (u *Util) SboxCube(state *rlwe.Ciphertext) *rlwe.Ciphertext {
+func SboxCube(state *rlwe.Ciphertext, evaluator bfv.Evaluator) *rlwe.Ciphertext {
 	s := state.CopyNew()
-	state = u.evaluator.MulNew(state, state) // ^ 2 ct x ct -> relinearization
-	state = u.evaluator.RelinearizeNew(state)
-	state = u.evaluator.MulNew(state, s) // ^ 3  ct x ct -> relinearization
-	state = u.evaluator.RelinearizeNew(state)
+	state = evaluator.MulNew(state, state) // ^ 2 ct x ct -> relinearization
+	state = evaluator.RelinearizeNew(state)
+	state = evaluator.MulNew(state, s) // ^ 3  ct x ct -> relinearization
+	state = evaluator.RelinearizeNew(state)
 	return state
 }
 
-func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphertext {
+func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
 	originalState := state.CopyNew()
 
 	// rotate state
-	stateRot := u.evaluator.RotateColumnsNew(state, -1)
+	stateRot := evaluator.RotateColumnsNew(state, -1)
 
 	// mask rotate state
-	mask := bfv.NewPlaintext(u.bfvParams, state.Level())
+	mask := bfv.NewPlaintext(bfvParams, state.Level())
 	maskVec := make([]uint64, pasta.T+halfslots)
 	for i := range maskVec {
 		maskVec[i] = 1
@@ -65,28 +66,28 @@ func (u *Util) SboxFeistel(state *rlwe.Ciphertext, halfslots uint64) *rlwe.Ciphe
 	for i := uint64(pasta.T); i < halfslots; i++ {
 		maskVec[i] = 0
 	}
-	u.encoder.Encode(maskVec, mask)
-	stateRot = u.evaluator.MulNew(stateRot, mask) // ct x pt
+	encoder.Encode(maskVec, mask)
+	stateRot = evaluator.MulNew(stateRot, mask) // ct x pt
 
 	// square
-	state = u.evaluator.MulNew(stateRot, stateRot)
-	state = u.evaluator.RelinearizeNew(state) // ct x ct -> relinearization
+	state = evaluator.MulNew(stateRot, stateRot)
+	state = evaluator.RelinearizeNew(state) // ct x ct -> relinearization
 
 	// add
-	result := u.evaluator.AddNew(originalState, state)
+	result := evaluator.AddNew(originalState, state)
 
 	return result
 }
 
-func (u *Util) Matmul(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
+func Matmul(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
 	// todo(fedejinich) this is actually not working but it will be added in the future
 	//if useBsGs {
 	//	return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
 	//}
-	return u.diagonal(*state, mat1, mat2, int(slots), int(halfslots))
+	return diagonal(*state, mat1, mat2, int(slots), int(halfslots), evaluator, encoder, bfvParams)
 }
 
-func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int) *rlwe.Ciphertext {
+func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
 	matrixDim := pasta.T
 
 	if matrixDim*2 != slots && matrixDim*4 > slots {
@@ -96,8 +97,8 @@ func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, hal
 
 	// non-full-packed rotation preparation
 	if halfslots != matrixDim {
-		stateRot := u.evaluator.RotateColumnsNew(&state, matrixDim)
-		state = *u.evaluator.AddNew(&state, stateRot)
+		stateRot := evaluator.RotateColumnsNew(&state, matrixDim)
+		state = *evaluator.AddNew(&state, stateRot)
 	}
 
 	// diagonal method preperation:
@@ -112,16 +113,16 @@ func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, hal
 			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
 			diag[j+halfslots] = mat2[j][(j+matrixDim-i)%matrixDim]
 		}
-		row := u.encoder.EncodeNew(diag, u.bfvParams.MaxLevel())
+		row := encoder.EncodeNew(diag, bfvParams.MaxLevel())
 		matrix[i] = *row
 	}
 
 	sum := state.CopyNew()
-	sum = u.evaluator.MulNew(sum, &matrix[0]) // ciphertext X plaintext, no need relin
+	sum = evaluator.MulNew(sum, &matrix[0]) // ciphertext X plaintext, no need relin
 	for i := 1; i < matrixDim; i++ {
-		state = *u.evaluator.RotateColumnsNew(&state, -1)
-		tmp := u.evaluator.MulNew(&state, &matrix[i]) // ciphertext X plaintext, no need relin
-		sum = u.evaluator.AddNew(sum, tmp)
+		state = *evaluator.RotateColumnsNew(&state, -1)
+		tmp := evaluator.MulNew(&state, &matrix[i]) // ciphertext X plaintext, no need relin
+		sum = evaluator.AddNew(sum, tmp)
 	}
 
 	return sum

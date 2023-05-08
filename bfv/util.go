@@ -127,7 +127,34 @@ func (u *Util) diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, hal
 	return sum
 }
 
-func Reminder(matrixSize uint64, plainSize uint64) uint64 {
+// PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
+func PostProcess(decomp []rlwe.Ciphertext, plainSize, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) rlwe.Ciphertext {
+	reminder := reminder(matrixSize, plainSize)
+
+	if reminder != 0 {
+		mask := make([]uint64, reminder) // create a 1s mask
+		for i := range mask {
+			mask[i] = 1
+		}
+		lastIndex := len(decomp) - 1
+		last := decomp[lastIndex]
+		plaintext := bfv.NewPlaintext(bfvParams, last.Level()) // halfslots
+		encoder.Encode(mask, plaintext)
+		// mask
+		decomp[lastIndex] = *evaluator.MulNew(&last, plaintext) // ct x pt
+	}
+
+	// flatten ciphertexts
+	ciphertext := decomp[0]
+	for i := 1; i < len(decomp); i++ {
+		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * int(plainSize)))
+		ciphertext = *evaluator.AddNew(&ciphertext, tmp) // ct + ct
+	}
+
+	return ciphertext
+}
+
+func reminder(matrixSize uint64, plainSize uint64) uint64 {
 	return matrixSize % plainSize
 }
 
@@ -143,7 +170,7 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 // EvaluationKeysBfvPasta creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
 func EvaluationKeysBfvPasta(matrixSize uint64, plainSize uint64, modDegree uint64, useBsGs bool,
 	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKey {
-	reminder := Reminder(matrixSize, plainSize)
+	reminder := reminder(matrixSize, plainSize)
 
 	numBlock := int64(matrixSize / plainSize)
 	if reminder > 0 {

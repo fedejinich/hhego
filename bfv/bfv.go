@@ -163,34 +163,7 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext)
 		result[block] = *b.Evaluator.AddNew(state, plaintext) // ct + pt
 	}
 
-	return b.postProcess(result)
-}
-
-// postProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
-func (b *BFV) postProcess(decomp []rlwe.Ciphertext) rlwe.Ciphertext {
-	reminder := Reminder(b.matrixSize, b.plainSize)
-
-	if reminder != 0 {
-		mask := make([]uint64, reminder) // create a 1s mask
-		for i := range mask {
-			mask[i] = 1
-		}
-		lastIndex := len(decomp) - 1
-		last := decomp[lastIndex]
-		plaintext := bfv.NewPlaintext(b.Params, last.Level()) // halfslots
-		b.Encoder.Encode(mask, plaintext)
-		// mask
-		decomp[lastIndex] = *b.Evaluator.MulNew(&last, plaintext) // ct x pt
-	}
-
-	// flatten ciphertexts
-	ciphertext := decomp[0]
-	for i := 1; i < len(decomp); i++ {
-		tmp := b.Evaluator.RotateColumnsNew(&decomp[i], -(i * int(b.plainSize)))
-		ciphertext = *b.Evaluator.AddNew(&ciphertext, tmp) // ct + ct
-	}
-
-	return ciphertext
+	return PostProcess(result, b.plainSize, b.matrixSize, b.Evaluator, b.Encoder, b.Params)
 }
 
 func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {

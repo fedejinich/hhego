@@ -57,12 +57,26 @@ func NewBFVPasta(t *testing.T, pastaParams PastaParams, modDegree, seclevel, mat
 	var customParams bfv.ParametersLiteral
 	if modDegree == uint64(math.Pow(2, 15)) {
 		fmt.Println("polynomial modDegree = 2^15 (32768)")
-		//customParams = bfv.PN15QP880
 		customParams = bfv.PN15QP827pq
 		customParams.T = plainMod
+	} else if modDegree == 65536 {
+		fmt.Println("polynomial modDegree = 2^16 (65536)")
+		customParams.LogN = 16
+		customParams.Q = []uint64{0xffffffffffc0001, 0xfffffffff840001, 0xfffffffff6a0001,
+			0xfffffffff5a0001, 0xfffffffff2a0001, 0xfffffffff240001,
+			0xffffffffefe0001, 0xffffffffeca0001, 0xffffffffe9e0001,
+			0xffffffffe7c0001, 0xffffffffe740001, 0xffffffffe520001,
+			0xffffffffe4c0001, 0xffffffffe440001, 0xffffffffe400001,
+			0xffffffffdda0001, 0xffffffffdd20001, 0xffffffffdbc0001,
+			0xffffffffdb60001, 0xffffffffd8a0001, 0xffffffffd840001,
+			0xffffffffd6e0001, 0xffffffffd680001, 0xffffffffd2a0001,
+			0xffffffffd000001, 0xffffffffcf00001, 0xffffffffcea0001,
+			0xffffffffcdc0001, 0xffffffffcc40001} // 1740 bits
+		customParams.P = []uint64{}
 	} else {
 		t.Errorf("polynomial modDegree not supported (modDegree)")
 	}
+	customParams.T = plainMod
 
 	// BFV parameters (128 bit security)
 	bfvParams, err := bfv.NewParametersFromLiteral(customParams) // post-quantum params

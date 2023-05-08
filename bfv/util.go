@@ -130,8 +130,8 @@ func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int
 }
 
 // PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
-func PostProcess(decomp []rlwe.Ciphertext, plainSize, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) rlwe.Ciphertext {
-	reminder := reminder(matrixSize, plainSize)
+func PostProcess(decomp []rlwe.Ciphertext, seclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) rlwe.Ciphertext {
+	reminder := reminder(matrixSize, seclevel)
 
 	if reminder != 0 {
 		mask := make([]uint64, reminder) // create a 1s mask
@@ -149,15 +149,15 @@ func PostProcess(decomp []rlwe.Ciphertext, plainSize, matrixSize uint64, evaluat
 	// flatten ciphertexts
 	ciphertext := decomp[0]
 	for i := 1; i < len(decomp); i++ {
-		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * int(plainSize)))
+		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * int(seclevel)))
 		ciphertext = *evaluator.AddNew(&ciphertext, tmp) // ct + ct
 	}
 
 	return ciphertext
 }
 
-func reminder(matrixSize uint64, plainSize uint64) uint64 {
-	return matrixSize % plainSize
+func reminder(matrixSize uint64, seclevel uint64) uint64 {
+	return matrixSize % seclevel
 }
 
 func RandomInputV(N int, plainMod uint64) []uint64 {
@@ -170,17 +170,17 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 }
 
 // EvaluationKeysBfvPasta creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
-func EvaluationKeysBfvPasta(matrixSize uint64, plainSize uint64, modDegree uint64, useBsGs bool,
+func EvaluationKeysBfvPasta(matrixSize uint64, seclevel uint64, modDegree uint64, useBsGs bool,
 	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKey {
-	reminder := reminder(matrixSize, plainSize)
+	reminder := reminder(matrixSize, seclevel)
 
-	numBlock := int64(matrixSize / plainSize)
+	numBlock := int64(matrixSize / seclevel)
 	if reminder > 0 {
 		numBlock++
 	}
 	var flattenGks []int
 	for i := int64(1); i < numBlock; i++ {
-		flattenGks = append(flattenGks, -int(i*int64(plainSize)))
+		flattenGks = append(flattenGks, -int(i*int64(seclevel)))
 	}
 
 	var gkIndices []int

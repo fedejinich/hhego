@@ -16,6 +16,8 @@ type UtilTestCase struct {
 
 var BfvHalfSlots = int(math.Pow(2, 15) / 2) // todo(fedejinich) this is ugly, do it better
 
+const BfvDegreeTest = 32768
+
 func TestUtil(t *testing.T) {
 	testCases := []UtilTestCase{
 		{modulus: 65537},
@@ -27,7 +29,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, BfvDegreeTest)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -67,7 +69,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_AddRc", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, BfvDegreeTest)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -105,7 +107,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_Mix", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, BfvDegreeTest)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -135,7 +137,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxCube", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, BfvDegreeTest)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -171,7 +173,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxFeistel", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, BfvDegreeTest)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -206,7 +208,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_BasicBFVDecrypt", func(t *testing.T) {
 			_, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, BfvDegreeTest)
 
 			vec := testVec()
 

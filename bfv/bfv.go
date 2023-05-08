@@ -21,10 +21,9 @@ type BFV struct {
 
 	// parameters used for PASTA transciphering
 	matrixSize     uint64 // size of the pasta-bfv decryption matrix
-	plainSize      uint64 // pasta plaintext size
+	seclevel       uint64 // pasta secret key security level (usually 128bits)
 	bfvPastaParams PastaParams
 	slots          uint64 // determined by the polynomial modulus degree of the encryption parameters
-	halfslots      uint64 // given by slots // todo(fedejinich) remove this field, it's unnecessary
 }
 
 type PastaParams struct {
@@ -34,7 +33,7 @@ type PastaParams struct {
 }
 
 func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder,
-	bfvPastaParams PastaParams, keygen rlwe.KeyGenerator, slots, halfslots, matrixSize, plainSize uint64) BFV {
+	bfvPastaParams PastaParams, keygen rlwe.KeyGenerator, slots, matrixSize, seclevel uint64) BFV {
 	return BFV{
 		bfv.NewEncryptor(bfvParams, secretKey),
 		bfv.NewDecryptor(bfvParams, secretKey),
@@ -45,14 +44,13 @@ func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.E
 		*secretKey,
 		NewUtil(bfvParams, encoder, evaluator, keygen),
 		matrixSize,
-		plainSize,
+		seclevel,
 		bfvPastaParams,
 		slots,
-		halfslots,
 	}
 }
 
-func NewBFVPasta(t *testing.T, pastaParams PastaParams, modDegree, plainSize, matrixSize, bsGsN1,
+func NewBFVPasta(t *testing.T, pastaParams PastaParams, modDegree, seclevel, matrixSize, bsGsN1,
 	bsGsN2 uint64, useBsGs bool, plainMod uint64) BFV {
 
 	// set bfv params
@@ -74,18 +72,24 @@ func NewBFVPasta(t *testing.T, pastaParams PastaParams, modDegree, plainSize, ma
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	secretKey, _ := keygen.GenKeyPair()
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	evk := EvaluationKeysBfvPasta(matrixSize, plainSize, modDegree, useBsGs, bsGsN2, bsGsN1, *secretKey, bfvParams, keygen)
+	evk := EvaluationKeysBfvPasta(matrixSize, seclevel, modDegree, useBsGs,
+		bsGsN2, bsGsN1, *secretKey, bfvParams, keygen)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 
-	bfvCipher := NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, pastaParams, keygen, modDegree, modDegree/2,
-		matrixSize, plainSize)
+	bfvCipher := NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder,
+		pastaParams, keygen, modDegree, matrixSize, seclevel)
 
 	return bfvCipher
 }
 
-func NewBFVBasic(pastaParams PastaParams, modulus uint64) (BFV, Util) {
-	// set bfv params
-	var params = bfv.PN15QP880
+func NewBFVBasic(pastaParams PastaParams, modulus, degree uint64) (BFV, Util) {
+	var params bfv.ParametersLiteral
+	if degree == uint64(math.Pow(2, 15)) {
+		// set bfv params
+		params = bfv.PN15QP827pq
+	} else {
+		panic("unsupported bfv scheme")
+	}
 	params.T = modulus
 
 	// BFV parameters (128 bit security)
@@ -97,8 +101,7 @@ func NewBFVBasic(pastaParams PastaParams, modulus uint64) (BFV, Util) {
 	evk := BasicEvaluationKeys(bfvParams.Parameters, keygen, s)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	bfv := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen,
-		0, 0, 0, 0)
+	bfv := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen, degree, 0, 0)
 
 	return bfv, bfv.Util
 }
@@ -162,7 +165,7 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Cipher
 		result[block] = *b.Evaluator.AddNew(state, plaintext) // ct + pt
 	}
 
-	return PostProcess(result, b.plainSize, b.matrixSize, b.Evaluator, b.Encoder, b.Params)
+	return PostProcess(result, b.seclevel, b.matrixSize, b.Evaluator, b.Encoder, b.Params)
 }
 
 func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {
@@ -173,15 +176,17 @@ func (b *BFV) DecryptPacked(ciphertext *rlwe.Ciphertext, matrixSize uint64) []ui
 	plaintext := b.decryptor.DecryptNew(ciphertext)
 	dec := b.Encoder.DecodeUintNew(plaintext)
 
-	return dec[0:matrixSize]
+	return dec[0:matrixSize] // todo(fedejinich) this can be improved to dec[:matrixSize]
 }
 
 func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
 	keyTmp := make([]uint64, b.Halfslots()+pasta.T)
 
-	for i := uint64(0); i < pasta.T; i++ {
+	for i := 0; i < pasta.T; i++ {
+		secondHalf := i + int(b.Halfslots())
+
 		keyTmp[i] = secretKey[i]
-		keyTmp[i+b.Halfslots()] = secretKey[i+pasta.T]
+		keyTmp[secondHalf] = secretKey[i+pasta.T]
 	}
 	plaintext := b.Encoder.EncodeNew(keyTmp, b.Params.MaxLevel())
 

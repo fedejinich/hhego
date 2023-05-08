@@ -18,7 +18,7 @@ const (
 
 type TestCase struct {
 	testType           int
-	secretKey          []uint64
+	pastaSecretKey     []uint64
 	ciphertextExpected []uint64
 	plainMod           uint64
 	modDegree          uint64
@@ -35,7 +35,7 @@ func TestSingleParty(t *testing.T) {
 		switch tc.testType {
 		case PackedUseCase:
 			t.Run(fmt.Sprintf("TestPackedUseCase%d", i), func(t *testing.T) {
-				packedTest(t, tc.secretKey, tc.plaintext, tc.plainMod, tc.modDegree, tc.secLevel,
+				packedTest(t, tc.pastaSecretKey, tc.plaintext, tc.plainMod, tc.modDegree, tc.secLevel,
 					tc.matrixSize, tc.bsgN1, tc.bsgN2, tc.useBsGs)
 			})
 		default:
@@ -45,11 +45,11 @@ func TestSingleParty(t *testing.T) {
 
 }
 
-func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree, secLevel, matrixSize,
+func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modDegree, secLevel, matrixSize,
 	bsgN1, bsgN2 uint64, useBsGs bool) {
 
 	// create pasta cipher
-	pastaCipher := pasta.NewPasta(secretKey, plainMod, PastaParams)
+	pastaCipher := pasta.NewPasta(pastaSecretKey, plainMod, PastaParams)
 
 	// create bfv cipher
 	bfvPastaParams := hhegobfv.PastaParams{
@@ -61,7 +61,7 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 	pastaCiphertext := pastaCipher.Encrypt(plaintext)
 
 	// homomorphically encrypt secret key
-	pastaSKCiphertext := bfv.EncryptPastaSecretKey(secretKey)
+	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey)
 
 	// move from PASTA ciphertext to BFV ciphertext
 	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext)
@@ -84,7 +84,7 @@ func packedTest(t *testing.T, secretKey, plaintext []uint64, plainMod, modDegree
 func testCases() []TestCase {
 	return []TestCase{
 		{
-			secretKey: []uint64{0x07a30, 0x0cfe2, 0x03bbb, 0x06ab7, 0x0de0b, 0x0c36c, 0x01c39, 0x019e0,
+			pastaSecretKey: []uint64{0x07a30, 0x0cfe2, 0x03bbb, 0x06ab7, 0x0de0b, 0x0c36c, 0x01c39, 0x019e0,
 				0x0e09c, 0x04441, 0x0c560, 0x00fd4, 0x0c611, 0x0a3fd, 0x0d408, 0x01b17,
 				0x0fa02, 0x054ea, 0x0afeb, 0x0193b, 0x0b6fa, 0x09e80, 0x0e253, 0x03f49,
 				0x0c8a5, 0x0c6a4, 0x0badf, 0x0bcfc, 0x0ecbd, 0x06ccd, 0x04f10, 0x0f1d6,
@@ -127,7 +127,7 @@ func testCases() []TestCase {
 			useBsGs:            true,
 		},
 		{testType: PackedUseCase,
-			secretKey: []uint64{0x02d65ac52, 0x1c6b45d1c, 0x1cb39041d, 0x0a114487b, 0x1bd58169e,
+			pastaSecretKey: []uint64{0x02d65ac52, 0x1c6b45d1c, 0x1cb39041d, 0x0a114487b, 0x1bd58169e,
 				0x06687bfc2, 0x0f2ca10ae, 0x08147165f, 0x145bd33c0, 0x1d93385c2,
 				0x045108f23, 0x0d464ef68, 0x162009aed, 0x0bb4cf340, 0x0a963c1ee,
 				0x08b633c3a, 0x13b1c1deb, 0x0275b464a, 0x170637204, 0x06b6f143c,
@@ -190,7 +190,7 @@ func testCases() []TestCase {
 			bsgN2:              10},
 		{
 			testType: PackedUseCase,
-			secretKey: []uint64{0x892f9ff42160c81, 0xa652a61d10eabf3, 0x76bb71c0ddc0c06,
+			pastaSecretKey: []uint64{0x892f9ff42160c81, 0xa652a61d10eabf3, 0x76bb71c0ddc0c06,
 				0xcd4219dc5300904, 0xb555b02f174ea12, 0xaf3a4ea03c081fd,
 				0x2e5ca6dc0c3122a, 0x73c7bb66bee9643, 0x68568756417a3da,
 				0x50be80234874982, 0xbfb0b39827ac73f, 0x8d81bf84a35fec7,

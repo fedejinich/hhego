@@ -107,7 +107,7 @@ func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
 	return b.encryptor.EncryptNew(plaintext)
 }
 
-func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext) rlwe.Ciphertext {
+func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Ciphertext) rlwe.Ciphertext {
 	pastaUtil := pasta.NewUtil(nil, uint64(b.bfvPastaParams.Modulus), b.bfvPastaParams.PastaRounds)
 
 	encryptedMessageLength := float64(len(encryptedMessage))
@@ -119,9 +119,9 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, secretKey *rlwe.Ciphertext)
 		pastaUtil.InitShake(pasta.Nonce, uint64(block))
 
 		// 'state' contains the two PASTA branches encoded as b.ciphertext
-		// s1 := secretKey[0:halfslots]
-		// s1 := secretKey[:halfslots]
-		state := secretKey
+		// s1 := pastaSecretKey[0:halfslots]
+		// s1 := pastaSecretKey[:halfslots]
+		state := pastaSecretKey
 
 		fmt.Printf("block %d\n", block)
 

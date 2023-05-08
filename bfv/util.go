@@ -45,6 +45,7 @@ func SboxCube(state *rlwe.Ciphertext, evaluator bfv.Evaluator) *rlwe.Ciphertext 
 	state = evaluator.RelinearizeNew(state)
 	state = evaluator.MulNew(state, s) // ^ 3  ct x ct -> relinearization
 	state = evaluator.RelinearizeNew(state)
+
 	return state
 }
 

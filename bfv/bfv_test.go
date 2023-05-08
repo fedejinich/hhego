@@ -9,8 +9,8 @@ import (
 func Test_EncryptPastaSecretKey(t *testing.T) {
 	pastaSK := pastaSK()
 
-	//modulus := uint64(8088322049)
-	modulus := uint64(65537)
+	modulus := uint64(8088322049)
+	//modulus := uint64(65537)
 	_, pastaParams := newPastaUtil(modulus)
 	bfv, _ := NewBFVBasic(pastaParams, modulus, BfvDegreeTest)
 

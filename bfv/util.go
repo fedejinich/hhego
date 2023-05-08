@@ -130,7 +130,8 @@ func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int
 }
 
 // PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
-func PostProcess(decomp []rlwe.Ciphertext, seclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) rlwe.Ciphertext {
+func PostProcess(decomp []rlwe.Ciphertext, seclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
+	bfvParams bfv.Parameters) rlwe.Ciphertext {
 	reminder := reminder(matrixSize, seclevel)
 
 	if reminder != 0 {
@@ -148,6 +149,8 @@ func PostProcess(decomp []rlwe.Ciphertext, seclevel, matrixSize uint64, evaluato
 
 	// flatten ciphertexts
 	ciphertext := decomp[0]
+	// todo(fedejinich) this can be optimized PostProcessing at the end of the result add,
+	//   in just one for loop
 	for i := 1; i < len(decomp); i++ {
 		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * int(seclevel)))
 		ciphertext = *evaluator.AddNew(&ciphertext, tmp) // ct + ct

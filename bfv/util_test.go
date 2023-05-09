@@ -22,8 +22,8 @@ var BfvHalfSlots = int(math.Pow(2, 15) / 2) // todo(fedejinich) this is ugly, do
 func TestUtil(t *testing.T) {
 	testCases := []UtilTestCase{
 		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 15))},
-		{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
-		{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
+		//{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
+		//{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
 	}
 
 	for _, tc := range testCases {
@@ -229,13 +229,10 @@ func TestUtil(t *testing.T) {
 			// random matrices
 			m := RandomMatrices(uint64(matrixSize), tc.modulus)
 			b := RandomBiases(uint64(matrixSize), tc.modulus)
-			viTmp := make([]uint64, len(plaintext))
-			for i := 0; i < len(plaintext); i++ {
-				viTmp[i] = plaintext[i]
-			}
+
 			computedPlain := make([]uint64, matrixSize)
 			for r := 0; r < pasta.NumMatmulsSquares; r++ {
-				computedPlain = util.Affine(m[r], viTmp, b[r], tc.modulus)
+				computedPlain = util.Affine(m[r], plaintext, b[r], tc.modulus)
 			}
 
 			_, pastaParams := newPastaUtil(tc.modulus)

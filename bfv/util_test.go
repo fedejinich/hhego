@@ -1,6 +1,7 @@
 package bfv
 
 import (
+	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"hhego/pasta"
 	"hhego/util"
 	"math"
@@ -219,6 +220,37 @@ func TestUtil(t *testing.T) {
 			d := bfv.DecryptPacked(ct, uint64(len(vec)))
 			if !util.EqualSlices(d, toVec(vec)) {
 				t.Errorf("not equal slices")
+			}
+		})
+
+		t.Run("TestUtil_Affine", func(t *testing.T) {
+			matrixSize := 200
+			plaintext := RandomInputV(matrixSize, tc.modulus)
+			// random matrices
+			m := RandomMatrices(uint64(matrixSize), tc.modulus)
+			b := RandomBiases(uint64(matrixSize), tc.modulus)
+			viTmp := make([]uint64, len(plaintext))
+			for i := 0; i < len(plaintext); i++ {
+				viTmp[i] = plaintext[i]
+			}
+			computedPlain := make([]uint64, matrixSize)
+			for r := 0; r < pasta.NumMatmulsSquares; r++ {
+				computedPlain = util.Affine(m[r], viTmp, b[r], tc.modulus)
+			}
+
+			_, pastaParams := newPastaUtil(tc.modulus)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+			p := bfv.Encoder.EncodeNew(plaintext, bfv.Params.MaxLevel())
+			ct := bfv.Encrypt(p)
+
+			var result rlwe.Ciphertext
+			for r := 0; r < pasta.NumMatmulsSquares; r++ {
+				result = bfv.PackedAffine(m[r], *ct, b[r])
+			}
+
+			d := bfv.DecryptPacked(&result, uint64(matrixSize))
+			if !util.EqualSlices(d, computedPlain) {
+				t.Errorf("decrypted different vector after Affine")
 			}
 		})
 	}

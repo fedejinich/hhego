@@ -231,7 +231,7 @@ func (b *BFV) packedDiagonal(v *rlwe.Ciphertext, M [][]uint64) rlwe.Ciphertext {
 	for i := 0; uint64(i) < matrixDim; i++ {
 		diag := make([]uint64, matrixDim)
 		for j := 0; uint64(j) < matrixDim; j++ {
-			diag[j] = M[j][i+j] % matrixDim
+			diag[j] = M[j][(uint64(i+j) % matrixDim)]
 		}
 		row := b.Encoder.EncodeNew(diag, b.Params.MaxLevel())
 		matrix[i] = *row

@@ -5,7 +5,6 @@ import (
 	hhegobfv "hhego/bfv"
 	"hhego/pasta"
 	"hhego/util"
-	"math/rand"
 	"testing"
 )
 
@@ -53,13 +52,14 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 	bsgN1, bsgN2 uint64, useBsGs bool) {
 
 	// random matrices
-	m := randomMatrices(matrixSize, plainMod)
-	b := randomBiases(matrixSize, plainMod)
+	m := hhegobfv.RandomMatrices(matrixSize, plainMod)
+	b := hhegobfv.RandomBiases(matrixSize, plainMod)
 
 	viTmp := make([]uint64, len(plaintext))
 	for i := 0; i < len(plaintext); i++ {
 		viTmp[i] = plaintext[i]
 	}
+
 	computedPlain := make([]uint64, matrixSize)
 	for r := 0; r < pasta.NumMatmulsSquares; r++ {
 		computedPlain = util.Affine(m[r], viTmp, b[r], plainMod)
@@ -86,6 +86,7 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 	// move from PASTA ciphertext to BFV ciphertext
 	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext)
 
+	fmt.Println("homomorphically affine computations")
 	// homomorphically evaluation
 	for r := 0; r < pasta.NumMatmulsSquares; r++ {
 		bfvCiphertext = bfv.PackedAffine(m[r], bfvCiphertext, b[r])
@@ -96,8 +97,8 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 
 	// final decrypt
 	decrypted := bfv.DecryptPacked(&bfvCiphertext, matrixSize)
-	if !util.EqualSlices(decrypted, plaintext) {
-		//if !util.EqualSlices(decrypted, computedPlain) {
+	//if !util.EqualSlices(decrypted, plaintext) {
+	if !util.EqualSlices(decrypted, computedPlain) {
 		t.Errorf("decrypted a different vector")
 		fmt.Printf("matrixSize = %d\n", matrixSize)
 		fmt.Printf("plainMod = %d\n", plainMod)
@@ -106,31 +107,6 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 		//fmt.Printf("bsgsN2 = %d\n", bsgN2)
 		//fmt.Printf("useBsGs = %v\n", useBsGs)
 	}
-}
-
-func randomBiases(matrixSize uint64, plainMod uint64) [][]uint64 {
-	b := make([][]uint64, pasta.NumMatmulsSquares)
-	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		b[r] = make([]uint64, matrixSize)
-		for i := uint64(0); i < matrixSize; i++ {
-			b[r][i] = rand.Uint64() % plainMod
-		}
-	}
-	return b
-}
-
-func randomMatrices(matrixSize uint64, plainMod uint64) [][][]uint64 {
-	m := make([][][]uint64, pasta.NumMatmulsSquares)
-	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		m[r] = make([][]uint64, matrixSize)
-		for i := uint64(0); i < matrixSize; i++ {
-			m[r][i] = make([]uint64, matrixSize)
-			for j := 0; uint64(j) < matrixSize; j++ {
-				m[r][i][j] = rand.Uint64() % plainMod // not cryptosecure
-			}
-		}
-	}
-	return m
 }
 
 func testCases(enableLargeTestCases bool) []TestCase {
@@ -340,7 +316,7 @@ func testCases(enableLargeTestCases bool) []TestCase {
 		},
 	}
 
-	result := make([]TestCase, len(cases))
+	var result []TestCase
 
 	// filters large test cases if disabled
 	for i := 0; i < len(cases); i++ {
@@ -350,5 +326,5 @@ func testCases(enableLargeTestCases bool) []TestCase {
 		result = append(result, cases[i])
 	}
 
-	return cases
+	return result
 }

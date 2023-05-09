@@ -265,7 +265,9 @@ func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, k
 	galEl := parameters.GaloisElementForColumnRotationBy(-1)
 	galEl2 := parameters.GaloisElementForRowRotation()
 	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T) // useful for MatMulTest
-	els := []uint64{galEl, galEl2, galEl3}
+	galEl4 := parameters.GaloisElementForColumnRotationBy(-200)    // useful for Affine test
+	galEl5 := parameters.GaloisElementForColumnRotationBy(1)       // useful for Affine test
+	els := []uint64{galEl, galEl2, galEl3, galEl4, galEl5}
 
 	for k := 0; k < BsgsN2; k++ {
 		els = append(els, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
@@ -390,3 +392,28 @@ func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, k
 //
 //	return newSlice
 //}
+
+func RandomBiases(matrixSize uint64, plainMod uint64) [][]uint64 {
+	b := make([][]uint64, pasta.NumMatmulsSquares)
+	for r := 0; r < pasta.NumMatmulsSquares; r++ {
+		b[r] = make([]uint64, matrixSize)
+		for i := uint64(0); i < matrixSize; i++ {
+			b[r][i] = rand.Uint64() % plainMod
+		}
+	}
+	return b
+}
+
+func RandomMatrices(matrixSize uint64, plainMod uint64) [][][]uint64 {
+	m := make([][][]uint64, pasta.NumMatmulsSquares)
+	for r := 0; r < pasta.NumMatmulsSquares; r++ {
+		m[r] = make([][]uint64, matrixSize)
+		for i := uint64(0); i < matrixSize; i++ {
+			m[r][i] = make([]uint64, matrixSize)
+			for j := 0; uint64(j) < matrixSize; j++ {
+				m[r][i][j] = rand.Uint64() % plainMod // not cryptosecure
+			}
+		}
+	}
+	return m
+}

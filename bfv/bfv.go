@@ -200,3 +200,55 @@ func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
 func (b *BFV) Halfslots() uint64 {
 	return b.slots / 2
 }
+
+func (b *BFV) PackedAffine(M [][]uint64, v rlwe.Ciphertext, bi []uint64) rlwe.Ciphertext {
+	vo := b.packedMatMul(M, v)
+	p := b.Encoder.EncodeNew(bi, b.Params.MaxLevel())
+	return *b.Evaluator.AddNew(&vo, p)
+}
+
+func (b *BFV) packedMatMul(M [][]uint64, v rlwe.Ciphertext) rlwe.Ciphertext {
+	vo := v.CopyNew()
+	return b.packedDiagonal(vo, M)
+}
+
+func (b *BFV) packedDiagonal(v *rlwe.Ciphertext, M [][]uint64) rlwe.Ciphertext {
+	matrixDim := uint64(len(M))
+	nslots := b.slots
+
+	if matrixDim*2 != nslots && matrixDim*4 > nslots {
+		panic("too little slots for matmul implementation!")
+	}
+
+	// non-full-packed rotation preparation
+	if nslots != matrixDim*2 {
+		vRot := b.Evaluator.RotateColumnsNew(v, -int(matrixDim))
+		v = b.Evaluator.AddNew(v, vRot)
+	}
+
+	// diagonal method preperation:
+	matrix := make([]rlwe.Plaintext, matrixDim)
+	for i := 0; uint64(i) < matrixDim; i++ {
+		diag := make([]uint64, matrixDim)
+		for j := 0; uint64(j) < matrixDim; j++ {
+			diag[j] = M[j][i+j] % matrixDim
+		}
+		row := b.Encoder.EncodeNew(diag, b.Params.MaxLevel())
+		matrix[i] = *row
+	}
+
+	sum := v.CopyNew()
+	sum = b.Evaluator.MulNew(sum, &matrix[0])
+	for i := 0; uint64(i) < matrixDim; i++ {
+		tmp := b.Evaluator.RotateColumnsNew(v, 1)
+		tmp = b.Evaluator.MulNew(tmp, &matrix[i])
+		sum = b.Evaluator.AddNew(tmp, sum)
+	}
+
+	return *sum
+}
+
+func (b *BFV) PackedSquare(ciphertext rlwe.Ciphertext) rlwe.Ciphertext {
+	r := b.Evaluator.MulNew(&ciphertext, &ciphertext)
+	return *b.Evaluator.RelinearizeNew(r)
+}

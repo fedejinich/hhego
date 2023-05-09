@@ -62,7 +62,7 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 	}
 	computedPlain := make([]uint64, matrixSize)
 	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		computedPlain = util.Affine(m, viTmp, b, plainMod)
+		computedPlain = util.Affine(m[r], viTmp, b[r], plainMod)
 		if r != pasta.NumMatmulsSquares-1 {
 			computedPlain = util.Square(computedPlain, plainMod)
 		}
@@ -87,10 +87,17 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext)
 
 	// homomorphically evaluation
+	for r := 0; r < pasta.NumMatmulsSquares; r++ {
+		bfvCiphertext = bfv.PackedAffine(m[r], bfvCiphertext, b[r])
+		if r != pasta.NumMatmulsSquares-1 {
+			bfvCiphertext = bfv.PackedSquare(bfvCiphertext)
+		}
+	}
 
 	// final decrypt
 	decrypted := bfv.DecryptPacked(&bfvCiphertext, matrixSize)
 	if !util.EqualSlices(decrypted, plaintext) {
+		//if !util.EqualSlices(decrypted, computedPlain) {
 		t.Errorf("decrypted a different vector")
 		fmt.Printf("matrixSize = %d\n", matrixSize)
 		fmt.Printf("plainMod = %d\n", plainMod)
@@ -101,22 +108,26 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 	}
 }
 
-func randomBiases(matrixSize uint64, plainMod uint64) []uint64 {
-	b := make([]uint64, pasta.NumMatmulsSquares)
+func randomBiases(matrixSize uint64, plainMod uint64) [][]uint64 {
+	b := make([][]uint64, pasta.NumMatmulsSquares)
 	for r := 0; r < pasta.NumMatmulsSquares; r++ {
+		b[r] = make([]uint64, matrixSize)
 		for i := uint64(0); i < matrixSize; i++ {
-			b[r] = rand.Uint64() % plainMod
+			b[r][i] = rand.Uint64() % plainMod
 		}
 	}
 	return b
 }
 
-func randomMatrices(matrixSize uint64, plainMod uint64) [][]uint64 {
-	m := make([][]uint64, pasta.NumMatmulsSquares)
+func randomMatrices(matrixSize uint64, plainMod uint64) [][][]uint64 {
+	m := make([][][]uint64, pasta.NumMatmulsSquares)
 	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		m[r] = make([]uint64, matrixSize)
+		m[r] = make([][]uint64, matrixSize)
 		for i := uint64(0); i < matrixSize; i++ {
-			m[r][i] = rand.Uint64() % plainMod // not cryptosecure
+			m[r][i] = make([]uint64, matrixSize)
+			for j := 0; uint64(j) < matrixSize; j++ {
+				m[r][i][j] = rand.Uint64() % plainMod // not cryptosecure
+			}
 		}
 	}
 	return m

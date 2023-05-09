@@ -6,7 +6,6 @@ import (
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"hhego/pasta"
 	"math"
-	"testing"
 )
 
 type BFV struct {
@@ -21,7 +20,7 @@ type BFV struct {
 
 	// parameters used for PASTA transciphering
 	matrixSize     uint64 // size of the pasta-bfv decryption matrix
-	seclevel       uint64 // pasta secret key security level (usually 128bits)
+	pastaSeclevel  uint64 // pasta secret key security level (usually 128bits)
 	bfvPastaParams PastaParams
 	slots          uint64 // determined by the polynomial modulus degree of the encryption parameters
 }
@@ -33,7 +32,7 @@ type PastaParams struct {
 }
 
 func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder,
-	bfvPastaParams PastaParams, keygen rlwe.KeyGenerator, slots, matrixSize, seclevel uint64) BFV {
+	bfvPastaParams PastaParams, keygen rlwe.KeyGenerator, slots, matrixSize, pastaSeclevel uint64) BFV {
 	return BFV{
 		bfv.NewEncryptor(bfvParams, secretKey),
 		bfv.NewDecryptor(bfvParams, secretKey),
@@ -44,25 +43,38 @@ func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.E
 		*secretKey,
 		NewUtil(bfvParams, encoder, evaluator, keygen),
 		matrixSize,
-		seclevel,
+		pastaSeclevel,
 		bfvPastaParams,
 		slots,
 	}
 }
 
-func NewBFVPasta(t *testing.T, pastaParams PastaParams, modDegree, seclevel, matrixSize, bsGsN1,
-	bsGsN2 uint64, useBsGs bool, plainMod uint64) BFV {
+func NewBFVPasta(pastaParams PastaParams, modDegree, pastaSeclevel, matrixSize, bsGsN1, bsGsN2 uint64,
+	useBsGs bool, plainMod uint64) BFV {
+	bfvParams := GenerateBfvParams(modDegree, plainMod)
+	keygen := bfv.NewKeyGenerator(bfvParams)
+	secretKey, _ := keygen.GenKeyPair()
+	bfvEncoder := bfv.NewEncoder(bfvParams)
+	evk := EvaluationKeysBfvPasta(matrixSize, pastaSeclevel, modDegree, useBsGs,
+		bsGsN2, bsGsN1, *secretKey, bfvParams, keygen)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 
-	// set bfv params
-	var customParams bfv.ParametersLiteral
+	bfvCipher := NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder,
+		pastaParams, keygen, modDegree, matrixSize, pastaSeclevel)
+
+	return bfvCipher
+}
+
+func GenerateBfvParams(modDegree uint64, plainMod uint64) bfv.Parameters {
+	var bfvParams bfv.ParametersLiteral
 	if modDegree == uint64(math.Pow(2, 15)) {
 		fmt.Println("polynomial modDegree = 2^15 (32768)")
-		customParams = bfv.PN15QP827pq
-		customParams.T = plainMod
+		bfvParams = bfv.PN15QP827pq // post-quantum params
+		bfvParams.T = plainMod
 	} else if modDegree == 65536 {
 		fmt.Println("polynomial modDegree = 2^16 (65536)")
-		customParams.LogN = 16
-		customParams.Q = []uint64{0xffffffffffc0001, 0xfffffffff840001, 0xfffffffff6a0001,
+		bfvParams.LogN = 16
+		bfvParams.Q = []uint64{0xffffffffffc0001, 0xfffffffff840001, 0xfffffffff6a0001,
 			0xfffffffff5a0001, 0xfffffffff2a0001, 0xfffffffff240001,
 			0xffffffffefe0001, 0xffffffffeca0001, 0xffffffffe9e0001,
 			0xffffffffe7c0001, 0xffffffffe740001, 0xffffffffe520001,
@@ -72,49 +84,28 @@ func NewBFVPasta(t *testing.T, pastaParams PastaParams, modDegree, seclevel, mat
 			0xffffffffd6e0001, 0xffffffffd680001, 0xffffffffd2a0001,
 			0xffffffffd000001, 0xffffffffcf00001, 0xffffffffcea0001,
 			0xffffffffcdc0001, 0xffffffffcc40001} // 1740 bits
-		customParams.P = []uint64{}
+		bfvParams.P = []uint64{}
 	} else {
-		t.Errorf("polynomial modDegree not supported (modDegree)")
+		panic(fmt.Sprintf("polynomial modDegree not supported (modDegree)"))
 	}
-	customParams.T = plainMod
+	bfvParams.T = plainMod
 
-	// BFV parameters (128 bit security)
-	bfvParams, err := bfv.NewParametersFromLiteral(customParams) // post-quantum params
+	params, err := bfv.NewParametersFromLiteral(bfvParams)
 	if err != nil {
-		t.Errorf("couldn't initialize bfvParams")
+		panic(fmt.Sprintf("couldn't initialize bfvParams"))
 	}
-	keygen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := keygen.GenKeyPair()
-	bfvEncoder := bfv.NewEncoder(bfvParams)
-	evk := EvaluationKeysBfvPasta(matrixSize, seclevel, modDegree, useBsGs,
-		bsGsN2, bsGsN1, *secretKey, bfvParams, keygen)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 
-	bfvCipher := NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder,
-		pastaParams, keygen, modDegree, matrixSize, seclevel)
-
-	return bfvCipher
+	return params
 }
 
 func NewBFVBasic(pastaParams PastaParams, modulus, degree uint64) (BFV, Util) {
-	var params bfv.ParametersLiteral
-	if degree == uint64(math.Pow(2, 15)) {
-		// set bfv params
-		params = bfv.PN15QP827pq
-	} else {
-		panic("unsupported bfv scheme")
-	}
-	params.T = modulus
-
-	// BFV parameters (128 bit security)
-	bfvParams, _ := bfv.NewParametersFromLiteral(params) // post-quantum params
+	bfvParams := GenerateBfvParams(modulus, degree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	s, _ := keygen.GenKeyPair()
-
-	// generate evaluation keys
 	evk := BasicEvaluationKeys(bfvParams.Parameters, keygen, s)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
+
 	bfv := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen, degree, 0, 0)
 
 	return bfv, bfv.Util
@@ -179,7 +170,7 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Cipher
 		result[block] = *b.Evaluator.AddNew(state, plaintext) // ct + pt
 	}
 
-	return PostProcess(result, b.seclevel, b.matrixSize, b.Evaluator, b.Encoder, b.Params)
+	return PostProcess(result, b.pastaSeclevel, b.matrixSize, b.Evaluator, b.Encoder, b.Params)
 }
 
 func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {

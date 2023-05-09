@@ -57,7 +57,7 @@ func packedTest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modD
 		PastaCiphertextSize: int(PastaParams.CiphertextSize),
 		Modulus:             int(plainMod),
 	}
-	bfv := hhegobfv.NewBFVPasta(t, bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv := hhegobfv.NewBFVPasta(bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 	pastaCiphertext := pastaCipher.Encrypt(plaintext)
 
 	// homomorphically encrypt secret key

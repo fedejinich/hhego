@@ -22,7 +22,7 @@ func TestUtil(t *testing.T) {
 	testCases := []UtilTestCase{
 		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 15))},
 		{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
-		//{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2,16))},
+		{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
 	}
 
 	for _, tc := range testCases {

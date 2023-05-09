@@ -4,54 +4,60 @@ import (
 	"math/big"
 )
 
-type Vector []uint64
-type Matrix []Vector
-
-func Affine(vo *Vector, M Matrix, vi Vector, b Vector, modulus uint64) {
-	matMul(vo, M, vi, modulus)
-	vecAdd(vo, *vo, b, modulus)
+func Affine(M [][]uint64, v []uint64, b []uint64, modulus uint64) []uint64 {
+	vo := matMul(M, v, modulus)
+	return vecAdd(vo, b, modulus)
 }
 
-func Square(vo *Vector, vi Vector, modulus uint64) {
+func Square(vi []uint64, modulus uint64) []uint64 {
 	rows := len(vi)
 
-	if len(*vo) != rows {
-		*vo = make(Vector, rows)
-	}
+	vo := make([]uint64, rows)
 
 	for row := 0; row < rows; row++ {
-		temp := new(big.Int).Mul(new(big.Int).SetUint64(vi[row]), new(big.Int).SetUint64(vi[row]))
-		(*vo)[row] = temp.Mod(temp, new(big.Int).SetUint64(modulus)).Uint64()
+		temp := new(big.Int).Mul(
+			new(big.Int).SetUint64(vi[row]),
+			new(big.Int).SetUint64(vi[row]))
+		vo[row] = temp.Mod(temp, new(big.Int).SetUint64(modulus)).Uint64()
 	}
+
+	return vo
 }
 
-func matMul(vo *Vector, M Matrix, vi Vector, modulus uint64) {
+func matMul(M [][]uint64, vi []uint64, modulus uint64) []uint64 {
 	cols := len(vi)
 	rows := len(M)
+	mod := new(big.Int).SetUint64(modulus)
 
-	if len(*vo) != rows {
-		*vo = make(Vector, rows)
-	}
+	vo := make([]uint64, rows)
 
 	for row := 0; row < rows; row++ {
-		temp := new(big.Int).Mul(new(big.Int).SetUint64(vi[0]), new(big.Int).SetUint64(M[row][0]))
-		(*vo)[row] = temp.Mod(temp, new(big.Int).SetUint64(modulus)).Uint64()
+		temp := new(big.Int).Mul(
+			new(big.Int).SetUint64(vi[0]),
+			new(big.Int).SetUint64(M[row][0]))
+		vo[row] = temp.Mod(temp, mod).Uint64()
 		for col := 1; col < cols; col++ {
-			temp = new(big.Int).Mul(new(big.Int).SetUint64(vi[col]), new(big.Int).SetUint64(M[row][col]))
-			(*vo)[row] = new(big.Int).Add(new(big.Int).SetUint64((*vo)[row]), temp.Mod(temp, new(big.Int).SetUint64(modulus))).Uint64()
-			(*vo)[row] %= modulus
+			temp = new(big.Int).Mul(
+				new(big.Int).SetUint64(vi[col]),
+				new(big.Int).SetUint64(M[row][col]))
+			vo[row] = new(big.Int).Add(
+				new(big.Int).SetUint64((vo)[row]),
+				temp.Mod(temp, mod)).Uint64()
+			vo[row] %= modulus
 		}
 	}
+
+	return vo
 }
 
-func vecAdd(vo *Vector, vi Vector, b Vector, modulus uint64) {
+func vecAdd(vi []uint64, b []uint64, modulus uint64) []uint64 {
 	rows := len(vi)
 
-	if len(*vo) != rows {
-		*vo = make(Vector, rows)
-	}
+	vo := make([]uint64, rows)
 
 	for row := 0; row < rows; row++ {
-		(*vo)[row] = (vi[row] + b[row]) % modulus
+		vo[row] = (vi[row] + b[row]) % modulus
 	}
+
+	return vo
 }

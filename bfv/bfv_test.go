@@ -3,6 +3,7 @@ package bfv
 import (
 	"hhego/pasta"
 	"hhego/util"
+	"math"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ func Test_EncryptPastaSecretKey(t *testing.T) {
 	modulus := uint64(8088322049)
 	//modulus := uint64(65537)
 	_, pastaParams := newPastaUtil(modulus)
-	bfv, _ := NewBFVBasic(pastaParams, modulus, BfvDegreeTest)
+	bfv, _ := NewBFVBasic(pastaParams, modulus, uint64(math.Pow(2, 15)))
 
 	ciphSK := bfv.EncryptPastaSecretKey(pastaSK)
 

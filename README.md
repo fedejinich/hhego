@@ -1,25 +1,19 @@
 # hhego
-hhego is a Go library for implementing hybrid homomorphic encryption schemes. It combines the strengths of both symmetric and homomorphic encryption techniques by utilizing PASTA as the symmetric cipher and BFV as the homomorphic cipher.
-Hybrid homomorphic encryption allows secure computation on encrypted data while maintaining the efficiency of symmetric encryption for large-scale processing tasks.
 
-## Introduction to Hybrid Homomorphic Encryption
-Homomorphic encryption (HE) enables computations to be performed directly on encrypted data without the need for decryption. This is particularly useful in privacy-preserving applications where data confidentiality is crucial. However, HE can be computationally expensive compared to traditional symmetric encryption schemes.
+hhego is a Go library specifically designed to implement hybrid homomorphic encryption schemes. This innovative library merges the advantages of symmetric and homomorphic encryption methodologies, employing PASTA as the symmetric cipher and BFV as the homomorphic cipher. The outcome is a hybrid homomorphic encryption system that ensures secure computation on encrypted data while preserving the efficiency of symmetric encryption for large-scale processing tasks.
 
-Hybrid homomorphic encryption addresses this issue by combining the efficiency of symmetric encryption with the privacy-preserving capabilities of homomorphic encryption. In this library, we use the PASTA symmetric cipher for fast encryption and decryption, and the BFV homomorphic cipher for secure computations on encrypted data.
+## Overview of Hybrid Homomorphic Encryption
+
+Homomorphic encryption (HE) permits direct computations on encrypted data without necessitating decryption. This capability is incredibly useful for applications centered on privacy, where data confidentiality is a critical requirement. Yet, traditional HE can be computationally intensive compared to symmetric encryption schemes.
+
+Our solution, hybrid homomorphic encryption, addresses this problem. It blends the speed of symmetric encryption with the privacy-preserving capacities of homomorphic encryption. In this library, we utilize PASTA for quick encryption and decryption, and BFV for secure computations on encrypted data.
+
+## Examples
+
+Examples of how to use this library can be found in the 'examples' folder. Currently, it only contains examples for a single party use case. More examples demonstrating different use cases will be added in the future.
 
 ## Dependencies
-- [lattigo v4](https://github.com/tuneinsight/lattigo): a library for lattice-based multiparty homomorphic encryption in Go
 
-## Build
-Requirements:
-- go 1.19
+This library depends on the following packages:
 
-```bash
-go build # todo update this and create a 'build' script
-```
-
-## Test
-
-```bash
-go test # todo update this and create a 'test' script
-```
+- [lattigo v4](https://github.com/tuneinsight/lattigo): A library for lattice-based multi-party homomorphic encryption in Go

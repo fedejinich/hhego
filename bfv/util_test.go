@@ -17,12 +17,11 @@ func (u *UtilTestCase) Halfslots() int {
 	return int(u.bfvDegree / 2)
 }
 
-var BfvHalfSlots = int(math.Pow(2, 15) / 2) // todo(fedejinich) this is ugly, do it better
-
 func TestUtil(t *testing.T) {
 	testCases := []UtilTestCase{
 		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 15))},
-		//{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
+		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 14))},
+		{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
 		//{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
 	}
 

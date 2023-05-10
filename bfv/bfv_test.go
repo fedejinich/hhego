@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// todo(fedejinch) add more test cases
 func Test_EncryptPastaSecretKey(t *testing.T) {
 	pastaSK := pastaSK()
 
@@ -21,7 +22,7 @@ func Test_EncryptPastaSecretKey(t *testing.T) {
 	if !util.EqualSlices(pastaSK[:pasta.T], d[:pasta.T]) {
 		t.Errorf("decrypted different pasta SK 1")
 	}
-	if !util.EqualSlices(pastaSK[pasta.T:], d[BfvHalfSlots:BfvHalfSlots+pasta.T]) {
+	if !util.EqualSlices(pastaSK[pasta.T:], d[bfv.Halfslots():bfv.Halfslots()+pasta.T]) {
 		t.Errorf("decrypted different pasta SK 2")
 	}
 }

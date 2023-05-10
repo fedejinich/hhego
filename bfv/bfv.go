@@ -255,3 +255,10 @@ func (b *BFV) PackedSquare(ciphertext rlwe.Ciphertext) rlwe.Ciphertext {
 	r := b.Evaluator.MulNew(&ciphertext, &ciphertext)
 	return *b.Evaluator.RelinearizeNew(r)
 }
+
+func (b *BFV) DecryptResult(ciphertext *rlwe.Ciphertext) []uint64 {
+	p := b.Decrypt(ciphertext)
+	d := b.Encoder.DecodeUintNew(p)
+
+	return d[:b.matrixSize]
+}

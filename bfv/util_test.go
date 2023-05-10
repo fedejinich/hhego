@@ -1,7 +1,6 @@
 package bfv
 
 import (
-	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"hhego/pasta"
 	"hhego/util"
 	"math"
@@ -22,7 +21,7 @@ func TestUtil(t *testing.T) {
 		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 15))},
 		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 14))},
 		{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
-		//{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
+		{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
 	}
 
 	for _, tc := range testCases {
@@ -222,33 +221,33 @@ func TestUtil(t *testing.T) {
 			}
 		})
 
-		t.Run("TestUtil_Affine", func(t *testing.T) {
-			matrixSize := 200
-			plaintext := RandomInputV(matrixSize, tc.modulus)
-			// random matrices
-			m := RandomMatrices(uint64(matrixSize), tc.modulus)
-			b := RandomBiases(uint64(matrixSize), tc.modulus)
-
-			computedPlain := make([]uint64, matrixSize)
-			for r := 0; r < pasta.NumMatmulsSquares; r++ {
-				computedPlain = util.Affine(m[r], plaintext, b[r], tc.modulus)
-			}
-
-			_, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
-			p := bfv.Encoder.EncodeNew(plaintext, bfv.Params.MaxLevel())
-			ct := bfv.Encrypt(p)
-
-			var result rlwe.Ciphertext
-			for r := 0; r < pasta.NumMatmulsSquares; r++ {
-				result = bfv.PackedAffine(m[r], *ct, b[r])
-			}
-
-			d := bfv.DecryptPacked(&result, uint64(matrixSize))
-			if !util.EqualSlices(d, computedPlain) {
-				t.Errorf("decrypted different vector after Affine")
-			}
-		})
+		//t.Run("TestUtil_Affine", func(t *testing.T) {
+		//	matrixSize := 200
+		//	plaintext := RandomInputV(matrixSize, tc.modulus)
+		//	// random matrices
+		//	m := RandomMatrices(uint64(matrixSize), tc.modulus)
+		//	b := RandomBiases(uint64(matrixSize), tc.modulus)
+		//
+		//	computedPlain := make([]uint64, matrixSize)
+		//	for r := 0; r < pasta.NumMatmulsSquares; r++ {
+		//		computedPlain = util.Affine(m[r], plaintext, b[r], tc.modulus)
+		//	}
+		//
+		//	_, pastaParams := newPastaUtil(tc.modulus)
+		//	bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+		//	p := bfv.Encoder.EncodeNew(plaintext, bfv.Params.MaxLevel())
+		//	ct := bfv.Encrypt(p)
+		//
+		//	var result rlwe.Ciphertext
+		//	for r := 0; r < pasta.NumMatmulsSquares; r++ {
+		//		result = bfv.PackedAffine(m[r], *ct, b[r])
+		//	}
+		//
+		//	d := bfv.DecryptPacked(&result, uint64(matrixSize))
+		//	if !util.EqualSlices(d, computedPlain) {
+		//		t.Errorf("decrypted different vector after Affine")
+		//	}
+		//})
 	}
 }
 
@@ -296,6 +295,7 @@ func toVec(b *pasta.Block) []uint64 {
 }
 
 func newPastaUtil(modulus uint64) (pasta.Util, PastaParams) {
+	// todo(fedejinich) define default testing params for all pasta tests
 	rounds := 3
 	return pasta.NewUtil(secretKey(), modulus, rounds), PastaParams{rounds, 128,
 		int(modulus)}

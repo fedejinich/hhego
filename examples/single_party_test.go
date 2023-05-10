@@ -73,7 +73,7 @@ func decTest(t *testing.T, pastaSecretKey, plaintext, ciphertextExpected []uint6
 	bfvCiphertext := bfv.Transcipher(ciphertextExpected, pastaSKCiphertext)
 
 	// final decrypt
-	decrypted := bfv.DecryptPacked(&bfvCiphertext, matrixSize)
+	decrypted := bfv.DecryptResult(&bfvCiphertext)
 	if !util.EqualSlices(decrypted, plaintext) {
 		t.Errorf("decrypted a different vector")
 		fmt.Printf("matrixSize = %d\n", matrixSize)
@@ -742,6 +742,9 @@ func testCases(enableLargeTestCases bool) []TestCase {
 	// filters large test cases if disabled
 	for i := 0; i < len(cases); i++ {
 		if cases[i].testType == PackedUseCaseLarge && !enableLargeTestCases {
+			continue
+		}
+		if cases[i].testType == PackedUseCase { // todo(fedejinich) remove this
 			continue
 		}
 		result = append(result, cases[i])

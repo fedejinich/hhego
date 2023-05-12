@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const NoMatrixSize = 0
+
 type UtilTestCase struct {
 	modulus   uint64
 	bfvDegree uint64
@@ -29,7 +31,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -53,8 +55,8 @@ func TestUtil(t *testing.T) {
 			// test MatMul
 			pastaUtil.MatmulBy(s1, r1)
 			pastaUtil.MatmulBy(s2, r2)
-			ct = Matmul(ct, mat1, mat2, uint64(tc.Halfslots()*2),
-				uint64(tc.Halfslots()), bfv.Evaluator, bfv.Encoder, bfv.Params)
+			ct = Matmul(ct, mat1, mat2, tc.bfvDegree, uint64(tc.Halfslots()),
+				bfv.Evaluator, bfv.Encoder, bfv.Params)
 
 			state1 := bfv.DecryptPacked(ct, uint64(len(s1)))
 			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
@@ -66,10 +68,9 @@ func TestUtil(t *testing.T) {
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
 		})
-
 		t.Run("TestUtil_AddRc", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -107,7 +108,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_Mix", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -137,7 +138,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxCube", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -173,7 +174,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxFeistel", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -208,7 +209,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_BasicBFVDecrypt", func(t *testing.T) {
 			_, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			vec := testVec()
 
@@ -220,6 +221,21 @@ func TestUtil(t *testing.T) {
 				t.Errorf("not equal slices")
 			}
 		})
+
+		// todo(fedejinich) complete this test
+		//t.Run("TestUtil_PostProcess", func(t *testing.T) {
+		//	_, pastaParams := newPastaUtil(tc.modulus)
+		//	_, bfvUtil := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+		//
+		//	vec := testVec()
+		//
+		//	PostProcess()
+		//
+		//	// basic bfv decrypt
+		//	if !util.EqualSlices(d, toVec(vec)) {
+		//		t.Errorf("not equal slices")
+		//	}
+		//})
 
 		//t.Run("TestUtil_Affine", func(t *testing.T) {
 		//	matrixSize := 200

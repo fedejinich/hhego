@@ -4,6 +4,7 @@ import (
 	"math"
 )
 
+const PastaDefaultSecLevel = 128
 const SecretKeySize = 256
 const PlaintextSize = 128
 const CiphertextSize = 128

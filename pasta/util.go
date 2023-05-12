@@ -17,7 +17,7 @@ type Block [T]uint64
 type Util struct {
 	shake128_ sha3.ShakeHash
 
-	secretKey_       SecretKey
+	secretKey_       SecretKey // todo(fedejinich) remove this field, it's unnecesary, only needed for Keystream. Provide it as a param
 	state1_, state2_ Block
 
 	maxPrimeSize, modulus uint64

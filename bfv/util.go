@@ -58,7 +58,7 @@ func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluat
 
 	// mask rotate state
 	mask := bfv.NewPlaintext(bfvParams, state.Level())
-	maskVec := make([]uint64, pasta.T+halfslots)
+	maskVec := make([]uint64, uint64(pasta.T)+halfslots)
 	for i := range maskVec {
 		maskVec[i] = 1
 	}

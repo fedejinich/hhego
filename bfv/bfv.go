@@ -51,7 +51,7 @@ func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.E
 
 func NewBFVPasta(pastaParams PastaParams, modDegree, pastaSeclevel, matrixSize, bsGsN1, bsGsN2 uint64,
 	useBsGs bool, plainMod uint64) BFV {
-	bfvParams := GenerateBfvParams(plainMod, modDegree)
+	bfvParams := generateBfvParams(plainMod, modDegree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	secretKey, _ := keygen.GenKeyPair()
 	bfvEncoder := bfv.NewEncoder(bfvParams)
@@ -65,13 +65,13 @@ func NewBFVPasta(pastaParams PastaParams, modDegree, pastaSeclevel, matrixSize, 
 	return bfvCipher
 }
 
-func GenerateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
+func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 	var bfvParams bfv.ParametersLiteral
 	if degree == uint64(math.Pow(2, 15)) {
-		fmt.Println("polynomial modDegree = 2^15 (32768)")
+		fmt.Println("polynomial modDegree (LogN) = 2^15 (32768)")
 		bfvParams = bfv.PN15QP827pq // post-quantum params
 	} else if degree == uint64(math.Pow(2, 16)) {
-		fmt.Println("polynomial modDegree = 2^16 (65536)")
+		fmt.Println("polynomial modDegree (LogN) = 2^16 (65536)")
 		bfvParams.LogN = 16
 		bfvParams.Q = []uint64{0xffffffffffc0001, 0xfffffffff840001, 0xfffffffff6a0001,
 			0xfffffffff5a0001, 0xfffffffff2a0001, 0xfffffffff240001,
@@ -85,11 +85,13 @@ func GenerateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 			0xffffffffcdc0001, 0xffffffffcc40001} // 1740 bits
 		bfvParams.P = []uint64{}
 	} else if degree == uint64(math.Pow(2, 14)) {
-		fmt.Println("polynomial modDegree = 2^14 (16384)")
+		fmt.Println("polynomial modDegree (LogN) = 2^14 (16384)")
 		bfvParams = bfv.PN14QP411pq // post-quantum params
 	} else {
 		panic(fmt.Sprintf("polynomial modDegree not supported (modDegree)"))
 	}
+
+	fmt.Println(fmt.Sprintf("modulus (T) = %d", modulus))
 	bfvParams.T = modulus
 
 	params, err := bfv.NewParametersFromLiteral(bfvParams)
@@ -100,17 +102,18 @@ func GenerateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 	return params
 }
 
-func NewBFVBasic(pastaParams PastaParams, modulus, degree uint64) (BFV, Util) {
-	bfvParams := GenerateBfvParams(modulus, degree)
+func NewBFVBasic(pastaParams PastaParams, modulus, degree uint64, matrixSize uint64) (BFV, Util) {
+	bfvParams := generateBfvParams(modulus, degree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	s, _ := keygen.GenKeyPair()
 	evk := BasicEvaluationKeys(bfvParams.Parameters, keygen, s)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 
-	bfv := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen, degree, 0, 0)
+	cipher := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen, degree,
+		matrixSize, pasta.PastaDefaultSecLevel)
 
-	return bfv, bfv.Util
+	return cipher, cipher.Util
 }
 
 func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {

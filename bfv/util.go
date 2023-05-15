@@ -57,7 +57,6 @@ func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluat
 	stateRot := evaluator.RotateColumnsNew(state, -1)
 
 	// mask rotate state
-	mask := bfv.NewPlaintext(bfvParams, state.Level())
 	maskVec := make([]uint64, uint64(pasta.T)+halfslots)
 	for i := range maskVec {
 		maskVec[i] = 1
@@ -67,7 +66,7 @@ func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluat
 	for i := uint64(pasta.T); i < halfslots; i++ {
 		maskVec[i] = 0
 	}
-	encoder.Encode(maskVec, mask)
+	mask := encoder.EncodeNew(maskVec, bfvParams.MaxLevel())
 	stateRot = evaluator.MulNew(stateRot, mask) // ct x pt
 
 	// square
@@ -140,11 +139,11 @@ func PostProcess(decomp []rlwe.Ciphertext, pastaSeclevel, matrixSize uint64, eva
 			mask[i] = 1
 		}
 		lastIndex := len(decomp) - 1
-		last := decomp[lastIndex]
-		plaintext := bfv.NewPlaintext(bfvParams, last.Level()) // halfslots
+		last := decomp[lastIndex].CopyNew()
+		plaintext := bfv.NewPlaintext(bfvParams, last.Level())
 		encoder.Encode(mask, plaintext)
 		// mask
-		decomp[lastIndex] = *evaluator.MulNew(&last, plaintext) // ct x pt
+		decomp[lastIndex] = *evaluator.MulNew(last, plaintext) // ct x pt
 	}
 
 	// flatten ciphertexts

@@ -72,18 +72,54 @@ func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 		bfvParams = bfv.PN15QP827pq // post-quantum params
 	} else if degree == uint64(math.Pow(2, 16)) {
 		fmt.Println("polynomial modDegree (LogN) = 2^16 (65536)")
-		bfvParams.LogN = 16
-		bfvParams.Q = []uint64{0xffffffffffc0001, 0xfffffffff840001, 0xfffffffff6a0001,
-			0xfffffffff5a0001, 0xfffffffff2a0001, 0xfffffffff240001,
-			0xffffffffefe0001, 0xffffffffeca0001, 0xffffffffe9e0001,
-			0xffffffffe7c0001, 0xffffffffe740001, 0xffffffffe520001,
-			0xffffffffe4c0001, 0xffffffffe440001, 0xffffffffe400001,
-			0xffffffffdda0001, 0xffffffffdd20001, 0xffffffffdbc0001,
-			0xffffffffdb60001, 0xffffffffd8a0001, 0xffffffffd840001,
-			0xffffffffd6e0001, 0xffffffffd680001, 0xffffffffd2a0001,
-			0xffffffffd000001, 0xffffffffcf00001, 0xffffffffcea0001,
-			0xffffffffcdc0001, 0xffffffffcc40001} // 1740 bits
-		bfvParams.P = []uint64{}
+		//bfvParams.LogN = 16
+		//bfvParams = bfv.PN15QP880
+		//bfvParams.Q = []uint64{0xffffffffffc0001, 0xfffffffff840001, 0xfffffffff6a0001,
+		//	0xfffffffff5a0001, 0xfffffffff2a0001, 0xfffffffff240001,
+		//	0xffffffffefe0001, 0xffffffffeca0001, 0xffffffffe9e0001,
+		//	0xffffffffe7c0001, 0xffffffffe740001, 0xffffffffe520001,
+		//	0xffffffffe4c0001, 0xffffffffe440001, 0xffffffffe400001,
+		//	0xffffffffdda0001, 0xffffffffdd20001, 0xffffffffdbc0001,
+		//	0xffffffffdb60001, 0xffffffffd8a0001, 0xffffffffd840001,
+		//	0xffffffffd6e0001, 0xffffffffd680001, 0xffffffffd2a0001,
+		//	0xffffffffd000001, 0xffffffffcf00001, 0xffffffffcea0001,
+		//	0xffffffffcdc0001, 0xffffffffcc40001} // 1740 bits
+		//bfvParams.P = []uint64{}
+
+		bfvParams = bfv.ParametersLiteral{
+			LogN: 16,
+			T:    0xffffffffffc0001,
+			Q: []uint64{0x10000000006e0001,
+				0xfffffffff840001,
+				0x1000000000860001,
+				0xfffffffff6a0001,
+				0x1000000000980001,
+				0xfffffffff5a0001,
+				0x1000000000b00001,
+				0x1000000000ce0001,
+				0xfffffffff2a0001,
+				0xfffffffff240001,
+				0x1000000000f00001,
+				0xffffffffefe0001,
+				0x10000000011a0001,
+				0xffffffffeca0001,
+				0xffffffffe9e0001,
+				0xffffffffe7c0001,
+				0xffffffffe740001,
+				0x10000000019a0001,
+				0x1000000001a00001,
+				0xffffffffe520001,
+				0xffffffffe4c0001,
+				0xffffffffe440001,
+				0x1000000001be0001,
+				0xffffffffe400001},
+			P: []uint64{0x1fffffffffe00001,
+				0x1fffffffffc80001,
+				0x2000000000460001,
+				0x1fffffffffb40001,
+				0x2000000000500001},
+			Sigma: rlwe.DefaultSigma,
+		}
 	} else if degree == uint64(math.Pow(2, 14)) {
 		fmt.Println("polynomial modDegree (LogN) = 2^14 (16384)")
 		bfvParams = bfv.PN14QP411pq // post-quantum params

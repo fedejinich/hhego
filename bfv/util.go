@@ -2,8 +2,8 @@ package bfv
 
 import (
 	"fmt"
-	"github.com/tuneinsight/lattigo/v4/bfv"
-	"github.com/tuneinsight/lattigo/v4/rlwe"
+	"github.com/ldsec/lattigo/v2/bfv"
+	"github.com/ldsec/lattigo/v2/rlwe"
 	"hhego/pasta"
 	"math/rand"
 	"time"
@@ -26,20 +26,20 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 	return Util{bfvParams, encoder, evaluator, keygen}
 }
 
-func AddRc(state *rlwe.Ciphertext, rc []uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) *rlwe.Ciphertext {
-	roundConstants := bfv.NewPlaintext(bfvParams, state.Level())
-	encoder.Encode(rc, roundConstants)
+func AddRc(state *bfv.Ciphertext, rc []uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) *bfv.Ciphertext {
+	roundConstants := bfv.NewPlaintext(bfvParams)
+	encoder.EncodeUint(rc, roundConstants)
 	return evaluator.AddNew(state, roundConstants) // ct + pt
 }
 
-func Mix(state *rlwe.Ciphertext, evaluator bfv.Evaluator, encoder bfv.Encoder) *rlwe.Ciphertext {
+func Mix(state *bfv.Ciphertext, evaluator bfv.Evaluator, encoder bfv.Encoder) *bfv.Ciphertext {
 	stateOriginal := state.CopyNew()
 	tmp := evaluator.RotateRowsNew(state)
 	tmp = evaluator.AddNew(tmp, stateOriginal)
 	return evaluator.AddNew(stateOriginal, tmp)
 }
 
-func SboxCube(state *rlwe.Ciphertext, evaluator bfv.Evaluator) *rlwe.Ciphertext {
+func SboxCube(state *bfv.Ciphertext, evaluator bfv.Evaluator) *bfv.Ciphertext {
 	s := state.CopyNew()
 	state = evaluator.MulNew(state, state) // ^ 2 ct x ct -> relinearization
 	state = evaluator.RelinearizeNew(state)
@@ -49,8 +49,8 @@ func SboxCube(state *rlwe.Ciphertext, evaluator bfv.Evaluator) *rlwe.Ciphertext 
 	return state
 }
 
-func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluator,
-	encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
+func SboxFeistel(state *bfv.Ciphertext, halfslots uint64, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, bfvParams bfv.Parameters) *bfv.Ciphertext {
 	originalState := state.CopyNew()
 
 	// rotate state
@@ -66,7 +66,8 @@ func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluat
 	for i := uint64(pasta.T); i < halfslots; i++ {
 		maskVec[i] = 0
 	}
-	mask := encoder.EncodeNew(maskVec, bfvParams.MaxLevel())
+	mask := bfv.NewPlaintext(bfvParams)
+	encoder.EncodeUint(maskVec, mask)
 	stateRot = evaluator.MulNew(stateRot, mask) // ct x pt
 
 	// square
@@ -79,7 +80,9 @@ func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluat
 	return result
 }
 
-func Matmul(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
+func Matmul(state *bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, bfvParams bfv.Parameters) *bfv.Ciphertext {
+
 	// todo(fedejinich) this is actually not working but it will be added in the future
 	//if useBsGs {
 	//	return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
@@ -87,7 +90,9 @@ func Matmul(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint
 	return diagonal(*state, mat1, mat2, int(slots), int(halfslots), evaluator, encoder, bfvParams)
 }
 
-func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int, evaluator bfv.Evaluator, encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
+func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, bfvParams bfv.Parameters) *bfv.Ciphertext {
+
 	matrixDim := pasta.T
 
 	if matrixDim*2 != slots && matrixDim*4 > slots {
@@ -102,7 +107,7 @@ func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int
 	}
 
 	// diagonal method preperation:
-	matrix := make([]rlwe.Plaintext, matrixDim)
+	matrix := make([]bfv.Plaintext, matrixDim)
 	for i := 0; i < matrixDim; i++ {
 		diag := make([]uint64, matrixDim+halfslots)
 		for t := 0; t < len(diag); t++ {
@@ -113,7 +118,8 @@ func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int
 			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
 			diag[j+halfslots] = mat2[j][(j+matrixDim-i)%matrixDim]
 		}
-		row := encoder.EncodeNew(diag, bfvParams.MaxLevel())
+		row := bfv.NewPlaintext(bfvParams)
+		encoder.EncodeUint(diag, row)
 		matrix[i] = *row
 	}
 
@@ -129,8 +135,8 @@ func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int
 }
 
 // PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
-func PostProcess(decomp []rlwe.Ciphertext, pastaSeclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
-	bfvParams bfv.Parameters) rlwe.Ciphertext {
+func PostProcess(decomp []bfv.Ciphertext, pastaSeclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
+	bfvParams bfv.Parameters) bfv.Ciphertext {
 	reminder := reminder(matrixSize, pastaSeclevel)
 
 	if reminder != 0 {
@@ -140,8 +146,8 @@ func PostProcess(decomp []rlwe.Ciphertext, pastaSeclevel, matrixSize uint64, eva
 		}
 		lastIndex := len(decomp) - 1
 		last := decomp[lastIndex].CopyNew()
-		plaintext := bfv.NewPlaintext(bfvParams, last.Level())
-		encoder.Encode(mask, plaintext)
+		plaintext := bfv.NewPlaintext(bfvParams)
+		encoder.EncodeUint(mask, plaintext)
 		// mask
 		decomp[lastIndex] = *evaluator.MulNew(last, plaintext) // ct x pt
 	}

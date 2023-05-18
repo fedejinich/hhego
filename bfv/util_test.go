@@ -1,6 +1,7 @@
 package bfv
 
 import (
+	bfv2 "github.com/ldsec/lattigo/v2/bfv"
 	"hhego/pasta"
 	"hhego/util"
 	"math"
@@ -43,8 +44,8 @@ func TestUtil(t *testing.T) {
 				p[i] = s1[i]
 				p[i+tc.Halfslots()] = s2[i]
 			}
-
-			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params)
+			bfv.Encoder.EncodeUint(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			r1 := pastaUtil.GetRandomVector(false)
@@ -83,7 +84,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params)
+			bfv.Encoder.EncodeUint(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			pastaUtil.InitShake(uint64(123456789), 0)
@@ -121,7 +123,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel()) // todo(fedejinich) this encoding is wrong
+			pt := bfv2.NewPlaintext(bfv.Params)
+			bfv.Encoder.EncodeUint(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test Mix
@@ -151,7 +154,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params)
+			bfv.Encoder.EncodeUint(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
@@ -187,7 +191,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv.Encoder.EncodeNew(p, bfv.Params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params)
+			bfv.Encoder.EncodeUint(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
@@ -214,7 +219,8 @@ func TestUtil(t *testing.T) {
 			vec := testVec()
 
 			// basic bfv decrypt
-			pt := bfv.Encoder.EncodeNew(toVec(vec), bfv.Params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params)
+			bfv.Encoder.EncodeUint(toVec(vec), pt)
 			ct := bfv.Encrypt(pt)
 			d := bfv.DecryptPacked(ct, uint64(len(vec)))
 			if !util.EqualSlices(d, toVec(vec)) {

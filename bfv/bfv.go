@@ -122,7 +122,7 @@ func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 		}
 	} else if degree == uint64(math.Pow(2, 14)) {
 		fmt.Println("polynomial modDegree (LogN) = 2^14 (16384)")
-		bfvParams = bfv.PN14QP411pq // post-quantum params
+		bfvParams = bfv.PN14QP438 // post-quantum params
 	} else {
 		panic(fmt.Sprintf("polynomial modDegree not supported (modDegree)"))
 	}

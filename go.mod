@@ -1,4 +1,4 @@
-module hhego
+module github.com/fedejinich/hhego
 
 go 1.19
 

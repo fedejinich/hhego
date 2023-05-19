@@ -33,7 +33,7 @@ type TestCase struct {
 }
 
 func TestSingleParty(t *testing.T) {
-	for i, tc := range testCases(false) {
+	for i, tc := range testCases(true) {
 		//if tc.testType == DecUseCase && tc.modDegree == uint64(math.Pow(2, 14)) {
 		switch tc.testType {
 		case PackedUseCase, PackedUseCaseLarge:
@@ -784,7 +784,7 @@ func testCases(enableLargeTestCases bool) []TestCase {
 
 	// filters large test cases if disabled
 	for i := 0; i < len(cases); i++ {
-		if cases[i].testType == PackedUseCaseLarge || cases[i].testType == DecUseCaseLarge && !enableLargeTestCases {
+		if (cases[i].testType == PackedUseCaseLarge || cases[i].testType == DecUseCaseLarge) && !enableLargeTestCases {
 			continue
 		}
 		result = append(result, cases[i])

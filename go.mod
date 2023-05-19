@@ -9,7 +9,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/ldsec/lattigo/v2 v2.4.0 // indirect
+	github.com/ldsec/lattigo/v2 v2.2.1-0.20210923173451-d9eb44f2c43f
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/testify v1.8.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect

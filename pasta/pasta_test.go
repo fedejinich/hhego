@@ -1,7 +1,7 @@
 package pasta
 
 import (
-	"hhego/util"
+	"github.com/fedejinich/hhego/util"
 	"math"
 	"math/rand"
 	"testing"

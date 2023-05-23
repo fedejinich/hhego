@@ -2,9 +2,9 @@ package examples
 
 import (
 	"fmt"
-	hhegobfv "hhego/bfv"
-	"hhego/pasta"
-	"hhego/util"
+	hhegobfv "github.com/fedejinich/hhego/bfv"
+	"github.com/fedejinich/hhego/pasta"
+	"github.com/fedejinich/hhego/util"
 	"testing"
 )
 

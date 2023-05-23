@@ -2,8 +2,8 @@ package bfv
 
 import (
 	"fmt"
-	"hhego/pasta"
-	"hhego/util"
+	"github.com/fedejinich/hhego/pasta"
+	"github.com/fedejinich/hhego/util"
 	"math"
 	"testing"
 )

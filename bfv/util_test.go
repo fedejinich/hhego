@@ -1,9 +1,9 @@
 package bfv
 
 import (
+	"github.com/fedejinich/hhego/pasta"
+	"github.com/fedejinich/hhego/util"
 	bfv2 "github.com/ldsec/lattigo/v2/bfv"
-	"hhego/pasta"
-	"hhego/util"
 	"math"
 	"testing"
 )

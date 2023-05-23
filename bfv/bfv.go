@@ -2,9 +2,9 @@ package bfv
 
 import (
 	"fmt"
+	"github.com/fedejinich/hhego/pasta"
 	"github.com/ldsec/lattigo/v2/bfv"
 	"github.com/ldsec/lattigo/v2/rlwe"
-	"hhego/pasta"
 	"math"
 )
 

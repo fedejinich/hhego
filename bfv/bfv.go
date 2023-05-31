@@ -149,6 +149,8 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphert
 
 	numBlock := pastaUtil.BlockCount(encryptedMessageLength, float64(b.bfvPastaParams.PastaCiphertextSize))
 
+	fmt.Printf("Transciphering %d pasta blocks\n", numBlock)
+
 	result := make([]bfv.Ciphertext, numBlock) // each element represents a pasta decrypted block
 	for block := 0; block < numBlock; block++ {
 		pastaUtil.InitShake(pasta.Nonce, uint64(block))
@@ -158,7 +160,7 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphert
 		// s1 := pastaSecretKey[:halfslots]
 		state := pastaSecretKey
 
-		fmt.Printf("block %d\n", block)
+		fmt.Printf("block %d/%d\n", block, numBlock)
 
 		for r := 1; r <= b.bfvPastaParams.PastaRounds; r++ {
 			fmt.Printf("round %d\n", r)

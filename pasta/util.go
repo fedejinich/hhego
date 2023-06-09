@@ -81,15 +81,9 @@ func (u *Util) InitShake(nonce, blockCounter uint64) {
 }
 
 func (u *Util) RandomMatrix() [][]uint64 {
-	mat := make([][]uint64, T)
-	mat[0] = u.GetRandomVector(false)
-	for i := uint64(1); i < T; i++ {
-		mat[i] = u.calculateRow(mat[i-1], mat[0])
-	}
-	return mat
+	return u.RandomMatrixBy(u.GetRandomVector(false))
 }
 
-// todo(fedejinich) refactor this right now
 func (u *Util) RandomMatrixBy(vec []uint64) [][]uint64 {
 	mat := make([][]uint64, T)
 	mat[0] = vec
@@ -178,7 +172,7 @@ func (u *Util) MatmulBy(state *Block, vec []uint64) {
 	var newState Block
 
 	rand := vec
-	currRow := vec
+	currRow := rand
 
 	for i := 0; i < T; i++ {
 		for j := 0; j < T; j++ {
@@ -254,19 +248,18 @@ func (u *Util) SboxFeistel(state *Block) {
 func (u *Util) calculateRow(prevRow, firstRow []uint64) []uint64 {
 	out := make([]uint64, T)
 
-	prevRowLast := big.NewInt(int64(prevRow[T-1]))
+	//prevRowLast := big.NewInt(int64(prevRow[T-1]))
+	modulus := big.NewInt(int64(u.modulus))
 
 	for j := 0; j < T; j++ {
-		firstRowVal := big.NewInt(int64(firstRow[j]))
-
-		tmp := new(big.Int).Mul(firstRowVal, prevRowLast)
-		modulus := big.NewInt(int64(u.modulus))
-		tmp.Mod(tmp, modulus)
+		firstRowBig := big.NewInt(int64(firstRow[j]))
+		tmpBig := big.NewInt(int64(prevRow[T-1]))
+		tmp := new(big.Int).Mul(firstRowBig, tmpBig)
+		tmp = tmp.Mod(tmp, modulus)
 
 		if j > 0 {
-			prevRowVal := big.NewInt(int64(prevRow[j-1]))
-			tmp.Add(tmp, prevRowVal)
-			tmp.Mod(tmp, modulus)
+			tmp = tmp.Add(tmp, big.NewInt(int64(prevRow[j-1])))
+			tmp = tmp.Mod(tmp, modulus)
 		}
 
 		out[j] = tmp.Uint64()

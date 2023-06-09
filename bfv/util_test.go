@@ -57,7 +57,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil.MatmulBy(s1, r1)
 			pastaUtil.MatmulBy(s2, r2)
 			ct = Matmul(ct, mat1, mat2, tc.bfvDegree, uint64(tc.Halfslots()),
-				bfv.Evaluator, bfv.Encoder, bfv.Params)
+				bfv.Evaluator, bfv.Encoder, bfv.Params, false)
 
 			state1 := bfv.DecryptPacked(ct, uint64(len(s1)))
 			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch

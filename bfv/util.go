@@ -2,6 +2,7 @@ package bfv
 
 import (
 	"fmt"
+	util "github.com/fedejinich/hhego"
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/ldsec/lattigo/v2/bfv"
 	"github.com/ldsec/lattigo/v2/rlwe"
@@ -29,6 +30,7 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 func AddRc(state *bfv.Ciphertext, rc []uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) *bfv.Ciphertext {
 	roundConstants := bfv.NewPlaintext(bfvParams)
 	encoder.EncodeUint(rc, roundConstants)
+
 	return evaluator.AddNew(state, roundConstants) // ct + pt
 }
 
@@ -36,6 +38,7 @@ func Mix(state *bfv.Ciphertext, evaluator bfv.Evaluator, encoder bfv.Encoder) *b
 	stateOriginal := state.CopyNew()
 	tmp := evaluator.RotateRowsNew(state)
 	tmp = evaluator.AddNew(tmp, stateOriginal)
+
 	return evaluator.AddNew(stateOriginal, tmp)
 }
 
@@ -81,13 +84,115 @@ func SboxFeistel(state *bfv.Ciphertext, halfslots uint64, evaluator bfv.Evaluato
 }
 
 func Matmul(state *bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64, evaluator bfv.Evaluator,
-	encoder bfv.Encoder, bfvParams bfv.Parameters) *bfv.Ciphertext {
+	encoder bfv.Encoder, bfvParams bfv.Parameters, useBsGs bool) *bfv.Ciphertext {
+	if useBsGs {
+		return babyStepGiantStep(state, mat1, mat2, slots, encoder, bfvParams, evaluator)
+	}
 
-	// todo(fedejinich) this is actually not working but it will be added in the future
-	//if useBsGs {
-	//	return u.babyStepGiantStep(state, mat1, mat2, slots, halfslots)
-	//}
 	return diagonal(*state, mat1, mat2, int(slots), int(halfslots), evaluator, encoder, bfvParams)
+}
+
+func babyStepGiantStep(state *bfv.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots uint64, encoder bfv.Encoder,
+	params bfv.Parameters, evaluator bfv.Evaluator) *bfv.Ciphertext {
+
+	halfslots := slots / 2
+	matrixDim := uint64(pasta.T)
+
+	if (matrixDim*2) != slots && (matrixDim*4) > slots {
+		panic("too little slots for matmul implementation!")
+	}
+
+	if BsgsN1*BsgsN2 != matrixDim {
+		panic("wrong bsgs parameters")
+	}
+
+	// diagonal method preparation
+	matrix := make([]*bfv.Plaintext, matrixDim)
+	for i := uint64(0); i < matrixDim; i++ {
+		diag := make([]uint64, halfslots+matrixDim)
+		tmp := make([]uint64, matrixDim)
+		k := i / BsgsN1
+
+		for j := uint64(0); j < matrixDim; j++ {
+			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
+			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]
+		}
+
+		// rotate:
+		if k > 0 {
+			diag = util.Rotate(diag, 0, k*BsgsN1, matrixDim) // only rotate filled elements
+			tmp = util.Rotate(tmp, 0, k*BsgsN1, matrixDim)
+		}
+
+		if halfslots != pasta.T {
+			diag = resize(diag, halfslots)
+			tmp = resize(tmp, halfslots)
+			for m := uint64(0); m < k*BsgsN1; m++ {
+				indexSrc := pasta.T - 1 - m
+				indexDest := halfslots - 1 - m
+				diag[indexDest] = diag[indexSrc]
+				diag[indexSrc] = 0
+				tmp[indexDest] = tmp[indexSrc]
+				tmp[indexSrc] = 0
+			}
+		}
+		// combine both diags
+		diag = resize(diag, slots)
+		for j := halfslots; j < slots; j++ {
+			diag[j] = tmp[j-halfslots]
+		}
+
+		row := bfv.NewPlaintext(params)
+		encoder.EncodeUint(diag, row)
+		matrix[i] = row
+	}
+
+	// prepare for non-full-packed rotations
+	if halfslots != pasta.T {
+		stateRot := evaluator.RotateColumnsNew(state, pasta.T)
+		state = evaluator.AddNew(state, stateRot)
+	}
+
+	rot := make([]*bfv.Ciphertext, BsgsN1)
+	rot[0] = state
+	for j := 1; j < BsgsN1; j++ {
+		rot[j] = evaluator.RotateColumnsNew(rot[j-1], -1)
+	}
+
+	// bsgs
+	var innerSum, outerSum, temp *bfv.Ciphertext
+	for k := 0; k < BsgsN2; k++ {
+		innerSum = evaluator.MulNew(rot[0], matrix[k*BsgsN1])
+		for j := 1; j < BsgsN1; j++ {
+			temp = evaluator.MulNew(rot[j], matrix[k*BsgsN1+j])
+			innerSum = evaluator.AddNew(innerSum, temp)
+		}
+		if k == 0 {
+			outerSum = innerSum
+		} else {
+			innerSum = evaluator.RotateColumnsNew(innerSum, -k*BsgsN1)
+			outerSum = evaluator.AddNew(outerSum, innerSum)
+		}
+	}
+
+	return outerSum
+}
+
+func resize(init []uint64, newSize uint64) []uint64 {
+	if newSize == uint64(len(init)) {
+		return init
+	}
+
+	if newSize < uint64(len(init)) {
+		return init[0:newSize]
+	}
+
+	newSlice := make([]uint64, newSize) // new
+	for i := 0; i < len(init); i++ {
+		newSlice[i] = init[i]
+	}
+
+	return newSlice
 }
 
 func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int, evaluator bfv.Evaluator,
@@ -96,7 +201,6 @@ func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int,
 	matrixDim := pasta.T
 
 	if matrixDim*2 != slots && matrixDim*4 > slots {
-		fmt.Println("too little slots for matmul implementation!")
 		fmt.Errorf("too little slots for matmul implementation!")
 	}
 
@@ -110,10 +214,6 @@ func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int,
 	matrix := make([]bfv.Plaintext, matrixDim)
 	for i := 0; i < matrixDim; i++ {
 		diag := make([]uint64, matrixDim+halfslots)
-		for t := 0; t < len(diag); t++ {
-			diag[t] = 0
-		}
-
 		for j := 0; j < matrixDim; j++ {
 			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
 			diag[j+halfslots] = mat2[j][(j+matrixDim-i)%matrixDim]
@@ -123,8 +223,7 @@ func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int,
 		matrix[i] = *row
 	}
 
-	sum := state.CopyNew()
-	sum = evaluator.MulNew(sum, &matrix[0]) // ciphertext X plaintext, no need relin
+	sum := evaluator.MulNew(&state, &matrix[0]) // ciphertext X plaintext, no need relin
 	for i := 1; i < matrixDim; i++ {
 		state = *evaluator.RotateColumnsNew(&state, -1)
 		tmp := evaluator.MulNew(&state, &matrix[i]) // ciphertext X plaintext, no need relin
@@ -180,10 +279,10 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 // EvaluationKeysBfvPasta creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
 func EvaluationKeysBfvPasta(matrixSize uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool,
 	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKey {
-	reminder := reminder(matrixSize, pastaSeclevel)
+	rem := reminder(matrixSize, pastaSeclevel)
 
 	numBlock := int64(matrixSize / pastaSeclevel)
-	if reminder > 0 {
+	if rem > 0 {
 		numBlock++
 	}
 	var flattenGks []int
@@ -310,3 +409,115 @@ func RandomMatrices(matrixSize uint64, plainMod uint64) [][][]uint64 {
 	}
 	return m
 }
+
+//func (u *util) babystepgiantstep(state *rlwe.ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.ciphertext {
+//	matrixDim := pasta.T
+//
+//	if ((matrixDim * 2) != int(slots)) && ((matrixDim * 4) > int(halfslots)) {
+//		fmt.Println("too little slots for matmul implementation!")
+//	}
+//
+//	if BsgsN1*BsgsN2 != matrixDim {
+//		fmt.Println("wrong bsgs params")
+//	}
+//
+//	// diagonal method preperation:
+//	matrix := make([]rlwe.Plaintext, matrixDim)
+//	aux := make([][]uint64, matrixDim)
+//	for i := 0; i < matrixDim; i++ {
+//		diag := make([]uint64, matrixDim)
+//		tmp := make([]uint64, matrixDim)
+//
+//		k := uint64(i / BsgsN1)
+//
+//		for j := 0; j < matrixDim; j++ {
+//			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
+//			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]  // push back
+//		}
+//
+//		// rotate:
+//		if k != 0 {
+//			util.Rotate(diag[0], diag[0]+(uint64(k)*BsgsN1), diag[len(diag)-1], diag) // todo(fedejinich) not sure about using this method
+//			util.Rotate(tmp[0], tmp[0]+(uint64(k)*BsgsN1), tmp[len(tmp)-1], tmp)      // todo(fedejinich) not sure about using this method
+//		}
+//
+//		// prepare for non-full-packed rotations
+//		if halfslots != pasta.T {
+//			newSize := int(halfslots)
+//			diag = resize(diag, newSize, 0)
+//			tmp = resize(tmp, newSize, 0)
+//			for m := uint64(0); m < k*BsgsN1; m++ {
+//				indexSrc := pasta.T - 1 - m
+//				indexDest := halfslots - 1 - m
+//				diag[indexDest] = diag[indexSrc]
+//				diag[indexSrc] = 0
+//				tmp[indexDest] = tmp[indexSrc]
+//				tmp[indexSrc] = 0
+//			}
+//		}
+//
+//		// combine both diags
+//		diag = resize(diag, int(slots), 0)
+//		for j := halfslots; j < slots; j++ {
+//			diag[j] = tmp[j-halfslots]
+//		}
+//
+//		r := bfv.NewPlaintext(u.bfvParams, state.Level())
+//		u.encoder.Encode(diag, r)
+//		matrix[i] = *r // push back
+//		aux[i] = diag  // for debug todo(fedejinich) remove this
+//	}
+//
+//	// prepare for non-full-packed rotations
+//	if halfslots != pasta.T {
+//		s := state.CopyNew()
+//		stateRot := u.evaluator.RotateColumnsNew(s, pasta.T)
+//		state = u.evaluator.AddNew(state, stateRot)
+//	}
+//
+//	// prepare rotations
+//	rot := make([]rlwe.Ciphertext, BsgsN1)
+//	rot[0] = *state
+//	for j := 1; j < BsgsN1; j++ {
+//		rot[j] = *u.evaluator.RotateColumnsNew(&rot[j-1], -1)
+//	}
+//
+//	var outerSum rlwe.Ciphertext
+//	for k := 0; k < BsgsN2; k++ {
+//		fmt.Sprintf("%v\n", k)
+//		innerSum := u.evaluator.MulNew(&rot[0], &matrix[k*BsgsN1]) // no needs relinearization
+//		for j := 1; j < BsgsN1; j++ {
+//			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j]) // no needs relinearization
+//			u.evaluator.Add(innerSum, temp, innerSum)
+//		}
+//		if k != 0 {
+//			outerSum = *innerSum
+//		} else {
+//			if outerSum.Value == nil { // todo(fedejinich) this is not ideal
+//				outerSum = *rlwe.NewCiphertext(u.bfvParams.Parameters, innerSum.Degree(), innerSum.Level())
+//			}
+//			u.evaluator.RotateColumns(innerSum, -k*BsgsN1, innerSum)
+//			outerSum = *u.evaluator.AddNew(&outerSum, innerSum)
+//		}
+//	}
+//
+//	return &outerSum
+//}
+//
+//func resize(slice []uint64, newSize int, value uint64) []uint64 {
+//	initSize := len(slice)
+//	if initSize >= newSize {
+//		return slice[:newSize]
+//	}
+//
+//	newSlice := make([]uint64, newSize)
+//	for i := 0; i < newSize; i++ {
+//		if i < initSize {
+//			newSlice[i] = slice[i]
+//		} else {
+//			newSlice[i] = value
+//		}
+//	}
+//
+//	return newSlice
+//}

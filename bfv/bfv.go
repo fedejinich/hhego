@@ -142,7 +142,9 @@ func (b *BFV) Encrypt(plaintext *bfv.Plaintext) *bfv.Ciphertext {
 	return b.encryptor.EncryptNew(plaintext)
 }
 
-func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphertext) bfv.Ciphertext {
+// todo(fedejinich) remove debug logs
+
+func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphertext, useBsGs bool) bfv.Ciphertext {
 	pastaUtil := pasta.NewUtil(nil, uint64(b.bfvPastaParams.Modulus), b.bfvPastaParams.PastaRounds)
 
 	encryptedMessageLength := float64(len(encryptedMessage))
@@ -157,20 +159,26 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphert
 
 		// 'state' contains the two PASTA branches encoded as b.ciphertext
 		// s1 := pastaSecretKey[0:halfslots]
-		// s1 := pastaSecretKey[:halfslots]
+		// s2 := pastaSecretKey[:halfslots]
 		state := pastaSecretKey
 
 		fmt.Printf("block %d/%d\n", block, numBlock)
 
 		for r := 1; r <= b.bfvPastaParams.PastaRounds; r++ {
 			fmt.Printf("round %d\n", r)
+
 			mat1 := pastaUtil.RandomMatrix()
 			mat2 := pastaUtil.RandomMatrix()
 			rc := pastaUtil.RCVec(b.Halfslots())
 
-			state = Matmul(state, mat1, mat2, b.slots, b.Halfslots(), b.Evaluator, b.Encoder, b.Params)
+			fmt.Printf("matmul\n")
+			state = Matmul(state, mat1, mat2, b.slots, b.Halfslots(), b.Evaluator, b.Encoder, b.Params, useBsGs)
+			fmt.Printf("addrc\n")
 			state = AddRc(state, rc, b.Encoder, b.Evaluator, b.Params)
+			fmt.Printf("mix\n")
 			state = Mix(state, b.Evaluator, b.Encoder)
+
+			fmt.Printf("sbox\n")
 			if r == b.bfvPastaParams.PastaRounds {
 				state = SboxCube(state, b.Evaluator)
 			} else {
@@ -184,9 +192,11 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphert
 		mat2 := pastaUtil.RandomMatrix()
 		rc := pastaUtil.RCVec(b.Halfslots())
 
-		state = Matmul(state, mat1, mat2, b.slots, b.Halfslots(), b.Evaluator, b.Encoder, b.Params)
-
+		fmt.Printf("matmul\n")
+		state = Matmul(state, mat1, mat2, b.slots, b.Halfslots(), b.Evaluator, b.Encoder, b.Params, useBsGs)
+		fmt.Printf("addrc\n")
 		state = AddRc(state, rc, b.Encoder, b.Evaluator, b.Params)
+		fmt.Printf("mix\n")
 		state = Mix(state, b.Evaluator, b.Encoder)
 
 		// add cipher
@@ -292,4 +302,8 @@ func (b *BFV) DecryptResult(ciphertext *bfv.Ciphertext) []uint64 {
 	d := b.Encoder.DecodeUintNew(p)
 
 	return d[:b.matrixSize]
+}
+func babystepgiantstep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
+
+	return nil
 }

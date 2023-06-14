@@ -236,10 +236,10 @@ func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int,
 // PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
 func PostProcess(decomp []bfv.Ciphertext, pastaSeclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
 	bfvParams bfv.Parameters) bfv.Ciphertext {
-	reminder := reminder(matrixSize, pastaSeclevel)
+	rem := reminder(matrixSize, pastaSeclevel)
 
-	if reminder != 0 {
-		mask := make([]uint64, reminder) // create a 1s mask
+	if rem != 0 {
+		mask := make([]uint64, rem) // create a 1s mask
 		for i := range mask {
 			mask[i] = 1
 		}

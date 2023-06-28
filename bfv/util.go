@@ -112,7 +112,6 @@ func babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64,
 		diag := make([]uint64, halfslots+matrixDim)
 		tmp := make([]uint64, matrixDim)
 		k := i / BsgsN1
-
 		for j := uint64(0); j < matrixDim; j++ {
 			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
 			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]
@@ -125,8 +124,11 @@ func babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64,
 		}
 
 		if halfslots != pasta.T {
+
 			diag = resize(diag, halfslots)
+
 			tmp = resize(tmp, halfslots)
+
 			for m := uint64(0); m < k*BsgsN1; m++ {
 				indexSrc := pasta.T - 1 - m
 				indexDest := halfslots - 1 - m
@@ -137,7 +139,9 @@ func babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64,
 			}
 		}
 		// combine both diags
+
 		diag = resize(diag, slots)
+
 		for j := halfslots; j < slots; j++ {
 			diag[j] = tmp[j-halfslots]
 		}
@@ -152,13 +156,11 @@ func babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64,
 		stateRot := evaluator.RotateColumnsNew(state, pasta.T)
 		state = evaluator.AddNew(state, stateRot)
 	}
-
 	rot := make([]*rlwe.Ciphertext, BsgsN1)
 	rot[0] = state
 	for j := 1; j < BsgsN1; j++ {
 		rot[j] = evaluator.RotateColumnsNew(rot[j-1], -1)
 	}
-
 	// bsgs
 	var innerSum, outerSum, temp *rlwe.Ciphertext
 	for k := 0; k < BsgsN2; k++ {
@@ -278,7 +280,7 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 
 // EvaluationKeysBfvPasta creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
 func EvaluationKeysBfvPasta(matrixSize uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool,
-	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKey {
+	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKeySet {
 	rem := reminder(matrixSize, pastaSeclevel)
 
 	numBlock := int64(matrixSize / pastaSeclevel)
@@ -305,10 +307,10 @@ func EvaluationKeysBfvPasta(matrixSize uint64, pastaSeclevel uint64, modDegree u
 	}
 
 	// finally we create the right evaluation set (rotation & reliniarization keys)
-	return genEVK(gkIndices, bfvParams.Parameters, keygen, &secretKey)
+	return *genEVK(gkIndices, bfvParams.Parameters, keygen, &secretKey)
 }
 
-func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) rlwe.EvaluationKey {
+func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) *rlwe.EvaluationKeySet {
 	galEls := make([]uint64, len(gkIndices))
 	for i, rot := range gkIndices {
 		// SEAL uses gkIndex = 0 to represent a column rotation (row in lattigo)
@@ -321,12 +323,18 @@ func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, s
 	}
 
 	// set column rotation galois keys
-	rks := keygen.GenRotationKeys(galEls, secretKey)
-	rlk := keygen.GenRelinearizationKey(secretKey, 1)
-	evk := rlwe.EvaluationKey{
-		Rlk:  rlk,
-		Rtks: rks,
+	evk := rlwe.NewEvaluationKeySet()
+	for _, e := range galEls {
+		evk.GaloisKeys[e] = keygen.GenGaloisKeyNew(e, secretKey)
 	}
+	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
+
+	//rks := keygen.GenRotationKeys(galEls, secretKey)
+	//rlk := keygen.GenRelinearizationKey(secretKey, 1)
+	//evk := rlwe.EvaluationKey{
+	//	Rlk:  rlk,
+	//	Rtks: rks,
+	//}
 
 	return evk
 }
@@ -365,7 +373,7 @@ func addDiagonalIndices(matrixSize uint64, gkIndices *[]int, slots uint64) {
 	*gkIndices = append(*gkIndices, 1)
 }
 
-func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {
+func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKeySet {
 	galEl := parameters.GaloisElementForColumnRotationBy(-1)
 	galEl2 := parameters.GaloisElementForRowRotation()
 	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T) // useful for MatMulTest
@@ -377,12 +385,20 @@ func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, k
 		els = append(els, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
 	}
 
-	rtks := keygen.GenRotationKeys(els, key)
-
-	return rlwe.EvaluationKey{
-		Rlk:  keygen.GenRelinearizationKey(key, 1),
-		Rtks: rtks,
+	evk := rlwe.NewEvaluationKeySet()
+	for _, e := range els {
+		evk.GaloisKeys[e] = keygen.GenGaloisKeyNew(e, key)
 	}
+
+	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(key)
+
+	return *evk
+	//rtks := keygen.GenRotationKeys(els, key)
+	//
+	//return rlwe.EvaluationKeySet{
+	//	Rlk:  keygen.GenRelinearizationKey(key, 1),
+	//	Rtks: rtks,
+	//}
 }
 
 func RandomBiases(matrixSize uint64, plainMod uint64) [][]uint64 {

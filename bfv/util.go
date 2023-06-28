@@ -4,8 +4,8 @@ import (
 	"fmt"
 	util "github.com/fedejinich/hhego"
 	"github.com/fedejinich/hhego/pasta"
-	"github.com/ldsec/lattigo/v2/bfv"
-	"github.com/ldsec/lattigo/v2/rlwe"
+	"github.com/tuneinsight/lattigo/v4/bfv"
+	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"math/rand"
 	"time"
 )
@@ -27,14 +27,14 @@ func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evalua
 	return Util{bfvParams, encoder, evaluator, keygen}
 }
 
-func AddRc(state *bfv.Ciphertext, rc []uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) *bfv.Ciphertext {
-	roundConstants := bfv.NewPlaintext(bfvParams)
-	encoder.EncodeUint(rc, roundConstants)
+func AddRc(state *rlwe.Ciphertext, rc []uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) *rlwe.Ciphertext {
+	roundConstants := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
+	encoder.Encode(rc, roundConstants)
 
 	return evaluator.AddNew(state, roundConstants) // ct + pt
 }
 
-func Mix(state *bfv.Ciphertext, evaluator bfv.Evaluator, encoder bfv.Encoder) *bfv.Ciphertext {
+func Mix(state *rlwe.Ciphertext, evaluator bfv.Evaluator, encoder bfv.Encoder) *rlwe.Ciphertext {
 	stateOriginal := state.CopyNew()
 	tmp := evaluator.RotateRowsNew(state)
 	tmp = evaluator.AddNew(tmp, stateOriginal)
@@ -42,7 +42,7 @@ func Mix(state *bfv.Ciphertext, evaluator bfv.Evaluator, encoder bfv.Encoder) *b
 	return evaluator.AddNew(stateOriginal, tmp)
 }
 
-func SboxCube(state *bfv.Ciphertext, evaluator bfv.Evaluator) *bfv.Ciphertext {
+func SboxCube(state *rlwe.Ciphertext, evaluator bfv.Evaluator) *rlwe.Ciphertext {
 	s := state.CopyNew()
 	state = evaluator.MulNew(state, state) // ^ 2 ct x ct -> relinearization
 	state = evaluator.RelinearizeNew(state)
@@ -52,8 +52,8 @@ func SboxCube(state *bfv.Ciphertext, evaluator bfv.Evaluator) *bfv.Ciphertext {
 	return state
 }
 
-func SboxFeistel(state *bfv.Ciphertext, halfslots uint64, evaluator bfv.Evaluator,
-	encoder bfv.Encoder, bfvParams bfv.Parameters) *bfv.Ciphertext {
+func SboxFeistel(state *rlwe.Ciphertext, halfslots uint64, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
 	originalState := state.CopyNew()
 
 	// rotate state
@@ -69,8 +69,8 @@ func SboxFeistel(state *bfv.Ciphertext, halfslots uint64, evaluator bfv.Evaluato
 	for i := uint64(pasta.T); i < halfslots; i++ {
 		maskVec[i] = 0
 	}
-	mask := bfv.NewPlaintext(bfvParams)
-	encoder.EncodeUint(maskVec, mask)
+	mask := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
+	encoder.Encode(maskVec, mask)
 	stateRot = evaluator.MulNew(stateRot, mask) // ct x pt
 
 	// square
@@ -83,8 +83,8 @@ func SboxFeistel(state *bfv.Ciphertext, halfslots uint64, evaluator bfv.Evaluato
 	return result
 }
 
-func Matmul(state *bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64, evaluator bfv.Evaluator,
-	encoder bfv.Encoder, bfvParams bfv.Parameters, useBsGs bool) *bfv.Ciphertext {
+func Matmul(state *rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint64, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, bfvParams bfv.Parameters, useBsGs bool) *rlwe.Ciphertext {
 	if useBsGs {
 		return babyStepGiantStep(state, mat1, mat2, slots, encoder, bfvParams, evaluator)
 	}
@@ -92,8 +92,8 @@ func Matmul(state *bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots uint6
 	return diagonal(*state, mat1, mat2, int(slots), int(halfslots), evaluator, encoder, bfvParams)
 }
 
-func babyStepGiantStep(state *bfv.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots uint64, encoder bfv.Encoder,
-	params bfv.Parameters, evaluator bfv.Evaluator) *bfv.Ciphertext {
+func babyStepGiantStep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots uint64, encoder bfv.Encoder,
+	params bfv.Parameters, evaluator bfv.Evaluator) *rlwe.Ciphertext {
 
 	halfslots := slots / 2
 	matrixDim := uint64(pasta.T)
@@ -107,12 +107,11 @@ func babyStepGiantStep(state *bfv.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, 
 	}
 
 	// diagonal method preparation
-	matrix := make([]*bfv.Plaintext, matrixDim)
+	matrix := make([]*rlwe.Plaintext, matrixDim)
 	for i := uint64(0); i < matrixDim; i++ {
 		diag := make([]uint64, halfslots+matrixDim)
 		tmp := make([]uint64, matrixDim)
 		k := i / BsgsN1
-
 		for j := uint64(0); j < matrixDim; j++ {
 			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
 			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]
@@ -125,8 +124,11 @@ func babyStepGiantStep(state *bfv.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, 
 		}
 
 		if halfslots != pasta.T {
+
 			diag = resize(diag, halfslots)
+
 			tmp = resize(tmp, halfslots)
+
 			for m := uint64(0); m < k*BsgsN1; m++ {
 				indexSrc := pasta.T - 1 - m
 				indexDest := halfslots - 1 - m
@@ -137,13 +139,15 @@ func babyStepGiantStep(state *bfv.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, 
 			}
 		}
 		// combine both diags
+
 		diag = resize(diag, slots)
+
 		for j := halfslots; j < slots; j++ {
 			diag[j] = tmp[j-halfslots]
 		}
 
-		row := bfv.NewPlaintext(params)
-		encoder.EncodeUint(diag, row)
+		row := bfv.NewPlaintext(params, params.MaxLevel())
+		encoder.Encode(diag, row)
 		matrix[i] = row
 	}
 
@@ -152,15 +156,13 @@ func babyStepGiantStep(state *bfv.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, 
 		stateRot := evaluator.RotateColumnsNew(state, pasta.T)
 		state = evaluator.AddNew(state, stateRot)
 	}
-
-	rot := make([]*bfv.Ciphertext, BsgsN1)
+	rot := make([]*rlwe.Ciphertext, BsgsN1)
 	rot[0] = state
 	for j := 1; j < BsgsN1; j++ {
 		rot[j] = evaluator.RotateColumnsNew(rot[j-1], -1)
 	}
-
 	// bsgs
-	var innerSum, outerSum, temp *bfv.Ciphertext
+	var innerSum, outerSum, temp *rlwe.Ciphertext
 	for k := 0; k < BsgsN2; k++ {
 		innerSum = evaluator.MulNew(rot[0], matrix[k*BsgsN1])
 		for j := 1; j < BsgsN1; j++ {
@@ -195,8 +197,8 @@ func resize(init []uint64, newSize uint64) []uint64 {
 	return newSlice
 }
 
-func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int, evaluator bfv.Evaluator,
-	encoder bfv.Encoder, bfvParams bfv.Parameters) *bfv.Ciphertext {
+func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, bfvParams bfv.Parameters) *rlwe.Ciphertext {
 
 	matrixDim := pasta.T
 
@@ -211,15 +213,15 @@ func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int,
 	}
 
 	// diagonal method preperation:
-	matrix := make([]bfv.Plaintext, matrixDim)
+	matrix := make([]rlwe.Plaintext, matrixDim)
 	for i := 0; i < matrixDim; i++ {
 		diag := make([]uint64, matrixDim+halfslots)
 		for j := 0; j < matrixDim; j++ {
 			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim]
 			diag[j+halfslots] = mat2[j][(j+matrixDim-i)%matrixDim]
 		}
-		row := bfv.NewPlaintext(bfvParams)
-		encoder.EncodeUint(diag, row)
+		row := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
+		encoder.Encode(diag, row)
 		matrix[i] = *row
 	}
 
@@ -234,8 +236,8 @@ func diagonal(state bfv.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int,
 }
 
 // PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
-func PostProcess(decomp []bfv.Ciphertext, pastaSeclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
-	bfvParams bfv.Parameters) bfv.Ciphertext {
+func PostProcess(decomp []rlwe.Ciphertext, pastaSeclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
+	bfvParams bfv.Parameters) rlwe.Ciphertext {
 	rem := reminder(matrixSize, pastaSeclevel)
 
 	if rem != 0 {
@@ -245,8 +247,8 @@ func PostProcess(decomp []bfv.Ciphertext, pastaSeclevel, matrixSize uint64, eval
 		}
 		lastIndex := len(decomp) - 1
 		last := decomp[lastIndex].CopyNew()
-		plaintext := bfv.NewPlaintext(bfvParams)
-		encoder.EncodeUint(mask, plaintext)
+		plaintext := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
+		encoder.Encode(mask, plaintext)
 		// mask
 		decomp[lastIndex] = *evaluator.MulNew(last, plaintext) // ct x pt
 	}
@@ -278,7 +280,7 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 
 // EvaluationKeysBfvPasta creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
 func EvaluationKeysBfvPasta(matrixSize uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool,
-	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKey {
+	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKeySet {
 	rem := reminder(matrixSize, pastaSeclevel)
 
 	numBlock := int64(matrixSize / pastaSeclevel)
@@ -305,10 +307,10 @@ func EvaluationKeysBfvPasta(matrixSize uint64, pastaSeclevel uint64, modDegree u
 	}
 
 	// finally we create the right evaluation set (rotation & reliniarization keys)
-	return genEVK(gkIndices, bfvParams.Parameters, keygen, &secretKey)
+	return *genEVK(gkIndices, bfvParams.Parameters, keygen, &secretKey)
 }
 
-func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) rlwe.EvaluationKey {
+func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, secretKey *rlwe.SecretKey) *rlwe.EvaluationKeySet {
 	galEls := make([]uint64, len(gkIndices))
 	for i, rot := range gkIndices {
 		// SEAL uses gkIndex = 0 to represent a column rotation (row in lattigo)
@@ -321,12 +323,11 @@ func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, s
 	}
 
 	// set column rotation galois keys
-	rks := keygen.GenRotationKeys(galEls, secretKey)
-	rlk := keygen.GenRelinearizationKey(secretKey, 1)
-	evk := rlwe.EvaluationKey{
-		Rlk:  rlk,
-		Rtks: rks,
+	evk := rlwe.NewEvaluationKeySet()
+	for _, e := range galEls {
+		evk.GaloisKeys[e] = keygen.GenGaloisKeyNew(e, secretKey)
 	}
+	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
 
 	return evk
 }
@@ -365,7 +366,7 @@ func addDiagonalIndices(matrixSize uint64, gkIndices *[]int, slots uint64) {
 	*gkIndices = append(*gkIndices, 1)
 }
 
-func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKey {
+func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKeySet {
 	galEl := parameters.GaloisElementForColumnRotationBy(-1)
 	galEl2 := parameters.GaloisElementForRowRotation()
 	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T) // useful for MatMulTest
@@ -377,12 +378,14 @@ func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, k
 		els = append(els, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
 	}
 
-	rtks := keygen.GenRotationKeys(els, key)
-
-	return rlwe.EvaluationKey{
-		Rlk:  keygen.GenRelinearizationKey(key, 1),
-		Rtks: rtks,
+	evk := rlwe.NewEvaluationKeySet()
+	for _, e := range els {
+		evk.GaloisKeys[e] = keygen.GenGaloisKeyNew(e, key)
 	}
+
+	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(key)
+
+	return *evk
 }
 
 func RandomBiases(matrixSize uint64, plainMod uint64) [][]uint64 {
@@ -409,115 +412,3 @@ func RandomMatrices(matrixSize uint64, plainMod uint64) [][][]uint64 {
 	}
 	return m
 }
-
-//func (u *util) babystepgiantstep(state *rlwe.ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.ciphertext {
-//	matrixDim := pasta.T
-//
-//	if ((matrixDim * 2) != int(slots)) && ((matrixDim * 4) > int(halfslots)) {
-//		fmt.Println("too little slots for matmul implementation!")
-//	}
-//
-//	if BsgsN1*BsgsN2 != matrixDim {
-//		fmt.Println("wrong bsgs params")
-//	}
-//
-//	// diagonal method preperation:
-//	matrix := make([]rlwe.Plaintext, matrixDim)
-//	aux := make([][]uint64, matrixDim)
-//	for i := 0; i < matrixDim; i++ {
-//		diag := make([]uint64, matrixDim)
-//		tmp := make([]uint64, matrixDim)
-//
-//		k := uint64(i / BsgsN1)
-//
-//		for j := 0; j < matrixDim; j++ {
-//			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
-//			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]  // push back
-//		}
-//
-//		// rotate:
-//		if k != 0 {
-//			util.Rotate(diag[0], diag[0]+(uint64(k)*BsgsN1), diag[len(diag)-1], diag) // todo(fedejinich) not sure about using this method
-//			util.Rotate(tmp[0], tmp[0]+(uint64(k)*BsgsN1), tmp[len(tmp)-1], tmp)      // todo(fedejinich) not sure about using this method
-//		}
-//
-//		// prepare for non-full-packed rotations
-//		if halfslots != pasta.T {
-//			newSize := int(halfslots)
-//			diag = resize(diag, newSize, 0)
-//			tmp = resize(tmp, newSize, 0)
-//			for m := uint64(0); m < k*BsgsN1; m++ {
-//				indexSrc := pasta.T - 1 - m
-//				indexDest := halfslots - 1 - m
-//				diag[indexDest] = diag[indexSrc]
-//				diag[indexSrc] = 0
-//				tmp[indexDest] = tmp[indexSrc]
-//				tmp[indexSrc] = 0
-//			}
-//		}
-//
-//		// combine both diags
-//		diag = resize(diag, int(slots), 0)
-//		for j := halfslots; j < slots; j++ {
-//			diag[j] = tmp[j-halfslots]
-//		}
-//
-//		r := bfv.NewPlaintext(u.bfvParams, state.Level())
-//		u.encoder.Encode(diag, r)
-//		matrix[i] = *r // push back
-//		aux[i] = diag  // for debug todo(fedejinich) remove this
-//	}
-//
-//	// prepare for non-full-packed rotations
-//	if halfslots != pasta.T {
-//		s := state.CopyNew()
-//		stateRot := u.evaluator.RotateColumnsNew(s, pasta.T)
-//		state = u.evaluator.AddNew(state, stateRot)
-//	}
-//
-//	// prepare rotations
-//	rot := make([]rlwe.Ciphertext, BsgsN1)
-//	rot[0] = *state
-//	for j := 1; j < BsgsN1; j++ {
-//		rot[j] = *u.evaluator.RotateColumnsNew(&rot[j-1], -1)
-//	}
-//
-//	var outerSum rlwe.Ciphertext
-//	for k := 0; k < BsgsN2; k++ {
-//		fmt.Sprintf("%v\n", k)
-//		innerSum := u.evaluator.MulNew(&rot[0], &matrix[k*BsgsN1]) // no needs relinearization
-//		for j := 1; j < BsgsN1; j++ {
-//			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j]) // no needs relinearization
-//			u.evaluator.Add(innerSum, temp, innerSum)
-//		}
-//		if k != 0 {
-//			outerSum = *innerSum
-//		} else {
-//			if outerSum.Value == nil { // todo(fedejinich) this is not ideal
-//				outerSum = *rlwe.NewCiphertext(u.bfvParams.Parameters, innerSum.Degree(), innerSum.Level())
-//			}
-//			u.evaluator.RotateColumns(innerSum, -k*BsgsN1, innerSum)
-//			outerSum = *u.evaluator.AddNew(&outerSum, innerSum)
-//		}
-//	}
-//
-//	return &outerSum
-//}
-//
-//func resize(slice []uint64, newSize int, value uint64) []uint64 {
-//	initSize := len(slice)
-//	if initSize >= newSize {
-//		return slice[:newSize]
-//	}
-//
-//	newSlice := make([]uint64, newSize)
-//	for i := 0; i < newSize; i++ {
-//		if i < initSize {
-//			newSlice[i] = slice[i]
-//		} else {
-//			newSlice[i] = value
-//		}
-//	}
-//
-//	return newSlice
-//}

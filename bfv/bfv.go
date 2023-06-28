@@ -3,14 +3,14 @@ package bfv
 import (
 	"fmt"
 	"github.com/fedejinich/hhego/pasta"
-	"github.com/ldsec/lattigo/v2/bfv"
-	"github.com/ldsec/lattigo/v2/rlwe"
+	"github.com/tuneinsight/lattigo/v4/bfv"
+	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"math"
 )
 
 type BFV struct {
-	encryptor bfv.Encryptor
-	decryptor bfv.Decryptor
+	encryptor rlwe.Encryptor
+	decryptor rlwe.Decryptor
 	Evaluator bfv.Evaluator
 	Encoder   bfv.Encoder
 	Keygen    rlwe.KeyGenerator
@@ -53,14 +53,14 @@ func NewBFVPasta(pastaParams PastaParams, modDegree, pastaSeclevel, matrixSize, 
 	useBsGs bool, plainMod uint64) BFV {
 	bfvParams := generateBfvParams(plainMod, modDegree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := keygen.GenKeyPair()
+	secretKey, _ := keygen.GenKeyPairNew()
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	evk := EvaluationKeysBfvPasta(matrixSize, pastaSeclevel, modDegree, useBsGs,
-		bsGsN2, bsGsN1, *secretKey, bfvParams, keygen)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
+		bsGsN2, bsGsN1, *secretKey, bfvParams, *keygen)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 
 	bfvCipher := NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder,
-		pastaParams, keygen, modDegree, matrixSize, pastaSeclevel)
+		pastaParams, *keygen, modDegree, matrixSize, pastaSeclevel)
 
 	return bfvCipher
 }
@@ -104,7 +104,7 @@ func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 				0x2000000000460001,
 				0x1fffffffffb40001,
 				0x2000000000500001},
-			Sigma: rlwe.DefaultSigma,
+			//Sigma: rlwe.DefaultSigma,
 		}
 	} else if degree == uint64(math.Pow(2, 14)) {
 		fmt.Println("polynomial modDegree (LogN) = 2^14 (16384)")
@@ -127,22 +127,22 @@ func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 func NewBFVBasic(pastaParams PastaParams, modulus, degree uint64, matrixSize uint64) (BFV, Util) {
 	bfvParams := generateBfvParams(modulus, degree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
-	s, _ := keygen.GenKeyPair()
-	evk := BasicEvaluationKeys(bfvParams.Parameters, keygen, s)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
+	s, _ := keygen.GenKeyPairNew()
+	evk := BasicEvaluationKeys(bfvParams.Parameters, *keygen, s)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 
-	cipher := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen, degree,
+	cipher := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, *keygen, degree,
 		matrixSize, pasta.PastaDefaultSecLevel)
 
 	return cipher, cipher.Util
 }
 
-func (b *BFV) Encrypt(plaintext *bfv.Plaintext) *bfv.Ciphertext {
+func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
 	return b.encryptor.EncryptNew(plaintext)
 }
 
-func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphertext, useBsGs bool) bfv.Ciphertext {
+func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Ciphertext, useBsGs bool) rlwe.Ciphertext {
 	pastaUtil := pasta.NewUtil(nil, uint64(b.bfvPastaParams.Modulus), b.bfvPastaParams.PastaRounds)
 
 	encryptedMessageLength := float64(len(encryptedMessage))
@@ -151,7 +151,7 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphert
 
 	fmt.Printf("Transciphering %d pasta blocks\n", numBlock)
 
-	result := make([]bfv.Ciphertext, numBlock) // each element represents a pasta decrypted block
+	result := make([]rlwe.Ciphertext, numBlock) // each element represents a pasta decrypted block
 	for block := 0; block < numBlock; block++ {
 		pastaUtil.InitShake(pasta.Nonce, uint64(block))
 
@@ -195,8 +195,8 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphert
 		end := math.Min(float64((block+1)*b.bfvPastaParams.PastaCiphertextSize), encryptedMessageLength)
 		cipherTmp := encryptedMessage[start:int(end)]
 
-		plaintext := bfv.NewPlaintext(b.Params)
-		b.Encoder.EncodeUint(cipherTmp, plaintext)
+		plaintext := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
+		b.Encoder.Encode(cipherTmp, plaintext)
 		state = b.Evaluator.NegNew(state)
 		result[block] = *b.Evaluator.AddNew(state, plaintext) // ct + pt
 	}
@@ -204,18 +204,18 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *bfv.Ciphert
 	return PostProcess(result, b.pastaSeclevel, b.matrixSize, b.Evaluator, b.Encoder, b.Params)
 }
 
-func (b *BFV) Decrypt(ciphertext *bfv.Ciphertext) *bfv.Plaintext {
+func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {
 	return b.decryptor.DecryptNew(ciphertext)
 }
 
-func (b *BFV) DecryptPacked(ciphertext *bfv.Ciphertext, matrixSize uint64) []uint64 {
+func (b *BFV) DecryptPacked(ciphertext *rlwe.Ciphertext, size uint64) []uint64 {
 	plaintext := b.decryptor.DecryptNew(ciphertext)
 	dec := b.Encoder.DecodeUintNew(plaintext)
 
-	return dec[0:matrixSize] // todo(fedejinich) this can be improved to dec[:matrixSize]
+	return dec[:size]
 }
 
-func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *bfv.Ciphertext {
+func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
 	keyTmp := make([]uint64, b.Halfslots()+pasta.T)
 
 	for i := 0; i < pasta.T; i++ {
@@ -224,8 +224,8 @@ func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *bfv.Ciphertext {
 		keyTmp[i] = secretKey[i]
 		keyTmp[secondHalf] = secretKey[i+pasta.T]
 	}
-	plaintext := bfv.NewPlaintext(b.Params)
-	b.Encoder.EncodeUint(keyTmp, plaintext)
+	plaintext := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
+	b.Encoder.Encode(keyTmp, plaintext)
 
 	return b.Encrypt(plaintext)
 }
@@ -234,68 +234,92 @@ func (b *BFV) Halfslots() uint64 {
 	return b.slots / 2
 }
 
-func (b *BFV) PackedAffine(M [][]uint64, v bfv.Ciphertext, bi []uint64) bfv.Ciphertext {
-	vo := b.packedMatMul(M, v)
-	p := bfv.NewPlaintext(b.Params)
-	b.Encoder.EncodeUint(bi, p)
-	return *b.Evaluator.AddNew(&vo, p)
-}
-
-func (b *BFV) packedMatMul(M [][]uint64, v bfv.Ciphertext) bfv.Ciphertext {
-	vo := v.CopyNew()
-	return b.packedDiagonal(vo, M)
-}
-
-func (b *BFV) packedDiagonal(v *bfv.Ciphertext, M [][]uint64) bfv.Ciphertext {
-	matrixDim := uint64(len(M))
-	nslots := b.slots
-
-	if matrixDim*2 != nslots && matrixDim*4 > nslots {
-		panic("too little slots for matmul implementation!")
-	}
-
-	// non-full-packed rotation preparation
-	if nslots != matrixDim*2 {
-		vRot := b.Evaluator.RotateColumnsNew(v, -int(matrixDim))
-		v = b.Evaluator.AddNew(v, vRot)
-	}
-
-	// diagonal method preperation:
-	matrix := make([]bfv.Plaintext, matrixDim)
-	for i := 0; uint64(i) < matrixDim; i++ {
-		diag := make([]uint64, matrixDim)
-		for j := 0; uint64(j) < matrixDim; j++ {
-			diag[j] = M[j][(uint64(i+j) % matrixDim)]
-		}
-		row := bfv.NewPlaintext(b.Params)
-		b.Encoder.EncodeUint(diag, row)
-		matrix[i] = *row
-	}
-
-	sum := v.CopyNew()
-	sum = b.Evaluator.MulNew(sum, &matrix[0])
-	for i := 0; uint64(i) < matrixDim; i++ {
-		tmp := b.Evaluator.RotateColumnsNew(v, 1)
-		tmp = b.Evaluator.MulNew(tmp, &matrix[i])
-		sum = b.Evaluator.AddNew(tmp, sum)
-	}
-
-	return *sum
-}
-
-func (b *BFV) PackedSquare(ciphertext bfv.Ciphertext) bfv.Ciphertext {
-	r := b.Evaluator.MulNew(&ciphertext, &ciphertext)
-	return *b.Evaluator.RelinearizeNew(r)
-}
-
-func (b *BFV) DecryptResult(ciphertext *bfv.Ciphertext) []uint64 {
-	p := b.Decrypt(ciphertext)
-	d := b.Encoder.DecodeUintNew(p)
-
-	return d[:b.matrixSize]
-}
-
-func babystepgiantstep(state *rlwe.Ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.Ciphertext {
-
-	return nil
-}
+// todo(fedejinich) to be honest, this code is not relevant and will be removed. It's useful for a specific usecase
+//  (training a NN with HE) and it's not relevant for blockchain applications
+//func (b *BFV) PackedAffine(M [][]uint64, v rlwe.Ciphertext, bi []uint64) rlwe.Ciphertext {
+//	vo := b.packedMatMul(M, v)
+//	p := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
+//	b.Encoder.Encode(bi, p)
+//	return *b.Evaluator.AddNew(&vo, p)
+//}
+//
+//func (b *BFV) packedMatMul(M [][]uint64, v rlwe.Ciphertext) rlwe.Ciphertext {
+//	vo := v.CopyNew()
+//	return *b.packedBabystepGigantStep(vo, M, b.slots)
+//}
+//
+//func (b *BFV) packedBabystepGigantStep(ct *rlwe.Ciphertext, mat [][]uint64, slots uint64) *rlwe.Ciphertext {
+//	// todo(fedejinich) tons of repeted code with bsgs
+//	matrixDim := uint64(len(mat))
+//	bsgsn1 := uint64(20)
+//	bsgsn2 := uint64(10) // todo(fedejinich) hardcodeado hasta los huevos
+//
+//	if (matrixDim*2) != slots && (matrixDim*4) > slots {
+//		panic("too little slots for matmul implementation!")
+//	}
+//
+//	//if BsgsN1*BsgsN2 != matrixDim {
+//	if bsgsn1*bsgsn2 != matrixDim {
+//		panic("wrong bsgs parameters")
+//	}
+//
+//	// diagonal method preparation
+//	matrix := make([]*rlwe.Plaintext, matrixDim)
+//	for i := uint64(0); i < matrixDim; i++ {
+//		k := i / bsgsn1
+//		diag := make([]uint64, matrixDim+k*bsgsn1)
+//		for j := uint64(0); j < matrixDim; j++ {
+//			diag[j] = mat[j][(j+i)%matrixDim]
+//		}
+//
+//		// rotate:
+//		if k > 0 {
+//			diag = util.Rotate(diag, 0, k*bsgsn1, matrixDim) // only rotate filled elements
+//		}
+//
+//		// prepare for non-full-packed rotations
+//		if slots != matrixDim*2 {
+//			for index := uint64(0); index < k*bsgsn1; index++ {
+//				diag = append(diag, diag[index])
+//				diag[index] = 0
+//			}
+//		}
+//
+//		row := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
+//		b.Encoder.Encode(diag, row)
+//		matrix[i] = row
+//	}
+//
+//	// prepare for non-full-packed rotations
+//	if slots != matrixDim*2 {
+//		stateRot := b.Evaluator.RotateColumnsNew(ct, -int(matrixDim))
+//		ct = b.Evaluator.AddNew(ct, stateRot)
+//	}
+//	rot := make([]*rlwe.Ciphertext, bsgsn1)
+//	rot[0] = ct
+//	for j := uint64(1); j < bsgsn1; j++ {
+//		rot[j] = b.Evaluator.RotateColumnsNew(rot[j-1], -1)
+//	}
+//	// bsgs
+//	var innerSum, outerSum, temp *rlwe.Ciphertext
+//	for k := uint64(0); k < bsgsn2; k++ {
+//		innerSum = b.Evaluator.MulNew(rot[0], matrix[k*bsgsn1])
+//		for j := uint64(1); j < bsgsn1; j++ {
+//			temp = b.Evaluator.MulNew(rot[j], matrix[k*bsgsn1+j])
+//			innerSum = b.Evaluator.AddNew(innerSum, temp)
+//		}
+//		if k == 0 {
+//			outerSum = innerSum
+//		} else {
+//			innerSum = b.Evaluator.RotateColumnsNew(innerSum, int(-k*bsgsn1))
+//			outerSum = b.Evaluator.AddNew(outerSum, innerSum)
+//		}
+//	}
+//
+//	return outerSum
+//}
+//
+//func (b *BFV) PackedSquare(ciphertext rlwe.Ciphertext) rlwe.Ciphertext {
+//	r := b.Evaluator.MulNew(&ciphertext, &ciphertext)
+//	return *b.Evaluator.RelinearizeNew(r)
+//}

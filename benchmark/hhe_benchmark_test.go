@@ -12,6 +12,11 @@ import (
 var PastaParams = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlaintextSize: pasta.PlaintextSize,
 	CiphertextSize: pasta.CiphertextSize, Rounds: 3}
 
+var benchResultPastaCiphertext []uint64
+var benchResultBfvTranscipher bfv2.Ciphertext
+var benchResultPastaSk bfv2.Ciphertext
+var benchResultDecrypted []uint64
+
 func BenchmarkHhe1(b *testing.B) {
 	pastaSecretKey := []uint64{
 		0x07a30, 0x0cfe2, 0x03bbb, 0x06ab7, 0x0de0b, 0x0c36c, 0x01c39, 0x019e0,
@@ -309,24 +314,39 @@ func hheBench(b *testing.B, pastaSecretKey, plaintext []uint64, plainMod, modDeg
 	}
 	bfv := hhegobfv.NewBFVPasta(bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 
+	//bfv.printParameters()
+
 	// encrypt plaintext with PASTA
 	var pastaCiphertext []uint64
 	b.Run(fmt.Sprintf("Plaintext PASTA Encrypt. rounds = %d, blocksize = %d, modulus = %d\n",
 		bfvPastaParams.PastaRounds, bfvPastaParams.PastaCiphertextSize, bfvPastaParams.Modulus), func(b *testing.B) {
-		pastaCiphertext = pastaCipher.Encrypt(plaintext)
+		for i := 0; i < b.N; i++ {
+			pastaCiphertext = pastaCipher.Encrypt(plaintext)
+			benchResultPastaCiphertext = pastaCiphertext
+		}
 	})
 
 	// homomorphically encrypt PASTA secret key
 	var pastaSKCiphertext *bfv2.Ciphertext
 	b.Run(benchBfvString("Pasta SK BFV Encryption", modDegree, plainMod, uint64(len(pastaSecretKey))), func(b *testing.B) {
-		pastaSKCiphertext = bfv.EncryptPastaSecretKey(pastaSecretKey)
+		for i := 0; i < b.N; i++ {
+			pastaSKCiphertext = bfv.EncryptPastaSecretKey(pastaSecretKey)
+			benchResultPastaSk = *pastaSKCiphertext
+		}
 	})
+
+	// bfv.printNoise()
 
 	// move from PASTA ciphertext to BFV ciphertext
 	var bfvCiphertext bfv2.Ciphertext
 	b.Run(benchBfvString("Transcipher", modDegree, plainMod, matrixSize), func(b *testing.B) {
-		bfvCiphertext = bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, useBsGs)
+		for i := 0; i < b.N; i++ {
+			bfvCiphertext = bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, useBsGs)
+			benchResultBfvTranscipher = bfvCiphertext
+		}
 	})
+
+	// bfv.printNoise()
 
 	//fmt.Println("homomorphically affine computations")
 	//// homomorphically evaluation
@@ -340,8 +360,13 @@ func hheBench(b *testing.B, pastaSecretKey, plaintext []uint64, plainMod, modDeg
 	// final decrypt
 	var decrypted []uint64
 	b.Run(benchBfvString("BFV Decrypt", modDegree, plainMod, matrixSize), func(b *testing.B) {
-		decrypted = bfv.DecryptPacked(&bfvCiphertext, matrixSize)
+		for i := 0; i < b.N; i++ {
+			decrypted = bfv.DecryptPacked(&bfvCiphertext, matrixSize)
+			benchResultDecrypted = decrypted
+		}
 	})
+
+	// bfv.printNoise()
 
 	// final test
 	if !util.EqualSlices(decrypted, plaintext) {

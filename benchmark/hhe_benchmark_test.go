@@ -5,7 +5,7 @@ import (
 	hhegobfv "github.com/fedejinich/hhego/bfv"
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/fedejinich/hhego/util"
-	bfv2 "github.com/ldsec/lattigo/v2/bfv"
+	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"testing"
 )
 
@@ -13,8 +13,8 @@ var PastaParams = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlaintextSize
 	CiphertextSize: pasta.CiphertextSize, Rounds: 3}
 
 var benchResultPastaCiphertext []uint64
-var benchResultBfvTranscipher bfv2.Ciphertext
-var benchResultPastaSk bfv2.Ciphertext
+var benchResultBfvTranscipher rlwe.Ciphertext
+var benchResultPastaSk rlwe.Ciphertext
 var benchResultDecrypted []uint64
 
 func BenchmarkHhe1(b *testing.B) {
@@ -327,7 +327,7 @@ func hheBench(b *testing.B, pastaSecretKey, plaintext []uint64, plainMod, modDeg
 	})
 
 	// homomorphically encrypt PASTA secret key
-	var pastaSKCiphertext *bfv2.Ciphertext
+	var pastaSKCiphertext *rlwe.Ciphertext
 	b.Run(benchBfvString("Pasta SK BFV Encryption", modDegree, plainMod, uint64(len(pastaSecretKey))), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			pastaSKCiphertext = bfv.EncryptPastaSecretKey(pastaSecretKey)
@@ -338,7 +338,7 @@ func hheBench(b *testing.B, pastaSecretKey, plaintext []uint64, plainMod, modDeg
 	// bfv.printNoise()
 
 	// move from PASTA ciphertext to BFV ciphertext
-	var bfvCiphertext bfv2.Ciphertext
+	var bfvCiphertext rlwe.Ciphertext
 	b.Run(benchBfvString("Transcipher", modDegree, plainMod, matrixSize), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			bfvCiphertext = bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, useBsGs)

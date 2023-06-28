@@ -3,7 +3,7 @@ package bfv
 import (
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/fedejinich/hhego/util"
-	bfv2 "github.com/ldsec/lattigo/v2/bfv"
+	bfv2 "github.com/tuneinsight/lattigo/v4/bfv"
 	"math"
 	"testing"
 )
@@ -44,8 +44,8 @@ func TestUtil(t *testing.T) {
 				p[i] = s1[i]
 				p[i+tc.Halfslots()] = s2[i]
 			}
-			pt := bfv2.NewPlaintext(bfv.Params)
-			bfv.Encoder.EncodeUint(p, pt)
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
+			bfv.Encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			r1 := pastaUtil.GetRandomVector(false)
@@ -84,8 +84,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params)
-			bfv.Encoder.EncodeUint(p, pt)
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
+			bfv.Encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			pastaUtil.InitShake(uint64(123456789), 0)
@@ -123,8 +123,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params)
-			bfv.Encoder.EncodeUint(p, pt)
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
+			bfv.Encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test Mix
@@ -154,8 +154,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params)
-			bfv.Encoder.EncodeUint(p, pt)
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
+			bfv.Encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
@@ -191,8 +191,8 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params)
-			bfv.Encoder.EncodeUint(p, pt)
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
+			bfv.Encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
@@ -219,8 +219,8 @@ func TestUtil(t *testing.T) {
 			vec := testVec()
 
 			// basic bfv decrypt
-			pt := bfv2.NewPlaintext(bfv.Params)
-			bfv.Encoder.EncodeUint(toVec(vec), pt)
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
+			bfv.Encoder.Encode(toVec(vec), pt)
 			ct := bfv.Encrypt(pt)
 			d := bfv.DecryptPacked(ct, uint64(len(vec)))
 			if !util.EqualSlices(d, toVec(vec)) {

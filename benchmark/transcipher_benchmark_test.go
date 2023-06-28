@@ -4,7 +4,7 @@ import (
 	"fmt"
 	hhegobfv "github.com/fedejinich/hhego/bfv"
 	"github.com/fedejinich/hhego/util"
-	bfv2 "github.com/ldsec/lattigo/v2/bfv"
+	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"testing"
 )
 
@@ -416,7 +416,7 @@ func benchTranscipher(b *testing.B, pastaSecretKey, plaintext, ciphertextExpecte
 	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey)
 
 	// move from PASTA ciphertext to BFV ciphertext
-	var bfvCiphertext bfv2.Ciphertext
+	var bfvCiphertext rlwe.Ciphertext
 	b.Run(benchBfvString("Transcipher", modDegree, plainMod, matrixSize), func(b *testing.B) {
 		bfvCiphertext = bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, useBsGs)
 	})

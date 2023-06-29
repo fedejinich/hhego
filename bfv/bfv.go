@@ -2,6 +2,7 @@ package bfv
 
 import (
 	"fmt"
+	util "github.com/fedejinich/hhego"
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
@@ -234,54 +235,86 @@ func (b *BFV) Halfslots() uint64 {
 	return b.slots / 2
 }
 
-//func (b *BFV) PackedAffine(M [][]uint64, v rlwe.Ciphertext, bi []uint64) rlwe.Ciphertext {
-//	vo := b.packedMatMul(M, v)
-//	p := bfv.NewPlaintext(b.Params)
-//	b.Encoder.Encode(bi, p)
-//	return *b.Evaluator.AddNew(&vo, p)
-//}
-//
-//func (b *BFV) packedMatMul(M [][]uint64, v rlwe.Ciphertext) rlwe.Ciphertext {
-//	vo := v.CopyNew()
-//	return b.packedDiagonal(vo, M)
-//}
+func (b *BFV) PackedAffine(M [][]uint64, v rlwe.Ciphertext, bi []uint64) rlwe.Ciphertext {
+	vo := b.packedMatMul(M, v)
+	p := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
+	b.Encoder.Encode(bi, p)
+	return *b.Evaluator.AddNew(&vo, p)
+}
 
-//func (b *BFV) packedDiagonal(v *rlwe.Ciphertext, M [][]uint64) rlwe.Ciphertext {
-//	matrixDim := uint64(len(M))
-//	nslots := b.slots
-//
-//	if matrixDim*2 != nslots && matrixDim*4 > nslots {
-//		panic("too little slots for matmul implementation!")
-//	}
-//
-//	// non-full-packed rotation preparation
-//	if nslots != matrixDim*2 {
-//		vRot := b.Evaluator.RotateColumnsNew(v, -int(matrixDim))
-//		v = b.Evaluator.AddNew(v, vRot)
-//	}
-//
-//	// diagonal method preperation:
-//	matrix := make([]rlwe.Plaintext, matrixDim)
-//	for i := 0; uint64(i) < matrixDim; i++ {
-//		diag := make([]uint64, matrixDim)
-//		for j := 0; uint64(j) < matrixDim; j++ {
-//			diag[j] = M[j][(uint64(i+j) % matrixDim)]
-//		}
-//		row := bfv.NewPlaintext(b.Params)
-//		b.Encoder.Encode(diag, row)
-//		matrix[i] = *row
-//	}
-//
-//	sum := v.CopyNew()
-//	sum = b.Evaluator.MulNew(sum, &matrix[0])
-//	for i := 0; uint64(i) < matrixDim; i++ {
-//		tmp := b.Evaluator.RotateColumnsNew(v, 1)
-//		tmp = b.Evaluator.MulNew(tmp, &matrix[i])
-//		sum = b.Evaluator.AddNew(tmp, sum)
-//	}
-//
-//	return *sum
-//}
+func (b *BFV) packedMatMul(M [][]uint64, v rlwe.Ciphertext) rlwe.Ciphertext {
+	vo := v.CopyNew()
+	return *b.packedBabystepGigantStep(vo, M, b.slots)
+}
+
+// todo(fedejinich) tons of repeted code with bsgs
+func (b *BFV) packedBabystepGigantStep(ct *rlwe.Ciphertext, mat [][]uint64, slots uint64) *rlwe.Ciphertext {
+	halfslots := slots / 2
+	matrixDim := uint64(pasta.T)
+
+	if (matrixDim*2) != slots && (matrixDim*4) > slots {
+		panic("too little slots for matmul implementation!")
+	}
+
+	if BsgsN1*BsgsN2 != matrixDim {
+		panic("wrong bsgs parameters")
+	}
+
+	// diagonal method preparation
+	matrix := make([]*rlwe.Plaintext, matrixDim)
+	for i := uint64(0); i < matrixDim; i++ {
+		diag := make([]uint64, halfslots+matrixDim)
+		k := i / BsgsN1
+		for j := uint64(0); j < matrixDim; j++ {
+			diag[j] = mat[j][(j+i)%matrixDim]
+		}
+
+		// rotate:
+		if k > 0 {
+			diag = util.Rotate(diag, 0, k*BsgsN1, matrixDim) // only rotate filled elements
+		}
+
+		// prepare for non-full-packed rotations
+		if slots != matrixDim*2 {
+			for index := uint64(0); index < k*BsgsN1; index++ {
+				diag = append(diag, diag[index])
+				diag[index] = 0
+			}
+		}
+
+		row := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
+		b.Encoder.Encode(diag, row)
+		matrix[i] = row
+	}
+
+	// prepare for non-full-packed rotations
+	if slots != matrixDim*2 {
+		stateRot := b.Evaluator.RotateColumnsNew(ct, -int(matrixDim))
+		ct = b.Evaluator.AddNew(ct, stateRot)
+	}
+	rot := make([]*rlwe.Ciphertext, BsgsN1)
+	rot[0] = ct
+	for j := 1; j < BsgsN1; j++ {
+		rot[j] = b.Evaluator.RotateColumnsNew(rot[j-1], -1)
+	}
+	// bsgs
+	var innerSum, outerSum, temp *rlwe.Ciphertext
+	for k := 0; k < BsgsN2; k++ {
+		innerSum = b.Evaluator.MulNew(rot[0], matrix[k*BsgsN1])
+		for j := 1; j < BsgsN1; j++ {
+			temp = b.Evaluator.MulNew(rot[j], matrix[k*BsgsN1+j])
+			innerSum = b.Evaluator.AddNew(innerSum, temp)
+		}
+		if k == 0 {
+			outerSum = innerSum
+		} else {
+			innerSum = b.Evaluator.RotateColumnsNew(innerSum, -k*BsgsN1)
+			outerSum = b.Evaluator.AddNew(outerSum, innerSum)
+		}
+	}
+
+	return outerSum
+}
 
 func (b *BFV) PackedSquare(ciphertext rlwe.Ciphertext) rlwe.Ciphertext {
 	r := b.Evaluator.MulNew(&ciphertext, &ciphertext)

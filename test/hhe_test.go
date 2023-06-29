@@ -281,22 +281,22 @@ func TestHhe4(t *testing.T) {
 func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modDegree, secLevel, matrixSize,
 	bsgN1, bsgN2 uint64, useBsGs bool) {
 
-	//// random matrices
-	//m := hhegobfv.RandomMatrices(matrixSize, plainMod)
-	//b := hhegobfv.RandomBiases(matrixSize, plainMod)
-	//
-	//viTmp := make([]uint64, len(plaintext))
-	//for i := 0; i < len(plaintext); i++ {
-	//	viTmp[i] = plaintext[i]
-	//}
-	//
-	//computedPlain := make([]uint64, matrixSize)
-	//for r := 0; r < pasta.NumMatmulsSquares; r++ {
-	//	computedPlain = util.Affine(m[r], viTmp, b[r], plainMod)
-	//	if r != pasta.NumMatmulsSquares-1 {
-	//		computedPlain = util.Square(computedPlain, plainMod)
-	//	}
-	//}
+	// random matrices
+	m := hhegobfv.RandomMatrices(matrixSize, plainMod)
+	b := hhegobfv.RandomBiases(matrixSize, plainMod)
+
+	viTmp := make([]uint64, len(plaintext))
+	for i := 0; i < len(plaintext); i++ {
+		viTmp[i] = plaintext[i]
+	}
+
+	computedPlain := make([]uint64, matrixSize)
+	for r := 0; r < pasta.NumMatmulsSquares; r++ {
+		computedPlain = util.Affine(m[r], viTmp, b[r], plainMod)
+		if r != pasta.NumMatmulsSquares-1 {
+			computedPlain = util.Square(computedPlain, plainMod)
+		}
+	}
 
 	// create pasta cipher
 	pastaCipher := pasta.NewPasta(pastaSecretKey, plainMod, PastaParams)
@@ -312,31 +312,16 @@ func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modDegr
 	//bfv.printParameters()
 
 	// encrypt plaintext with PASTA
-	var pastaCiphertext []uint64
-	//b.Run(fmt.Sprintf("Plaintext PASTA Encrypt. rounds = %d, blocksize = %d, modulus = %d\n",
-	//	bfvPastaParams.PastaRounds, bfvPastaParams.PastaCiphertextSize, bfvPastaParams.Modulus), func(t *testing.T) {
-	//	for i := 0; i < b.N; i++ {
-	pastaCiphertext = pastaCipher.Encrypt(plaintext)
-	//}
-	//})
+	pastaCiphertext := pastaCipher.Encrypt(plaintext)
 
 	// homomorphically encrypt PASTA secret key
 	var pastaSKCiphertext *rlwe.Ciphertext
-	//b.Run(benchBfvString("Pasta SK BFV Encryption", modDegree, plainMod, uint64(len(pastaSecretKey))), func(t *testing.T) {
-	//	for i := 0; i < b.N; i++ {
 	pastaSKCiphertext = bfv.EncryptPastaSecretKey(pastaSecretKey)
-	//}
-	//})
 
 	// bfv.printNoise()
 
 	// move from PASTA ciphertext to BFV ciphertext
-	var bfvCiphertext rlwe.Ciphertext
-	//t.Run(benchBfvString("Transcipher", modDegree, plainMod, matrixSize), func(t *testing.T) {
-	//for i := 0; i < b.N; i++ {
-	bfvCiphertext = bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, useBsGs)
-	//}
-	//})
+	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, useBsGs)
 
 	// bfv.printNoise()
 
@@ -350,12 +335,7 @@ func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modDegr
 	//}
 
 	// final decrypt
-	var decrypted []uint64
-	//b.Run(benchBfvString("BFV Decrypt", modDegree, plainMod, matrixSize), func(t *testing.T) {
-	//	for i := 0; i < b.N; i++ {
-	decrypted = bfv.DecryptPacked(&bfvCiphertext, matrixSize)
-	//}
-	//})
+	decrypted := bfv.DecryptPacked(&bfvCiphertext, matrixSize)
 
 	// bfv.printNoise()
 

@@ -329,13 +329,6 @@ func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, s
 	}
 	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
 
-	//rks := keygen.GenRotationKeys(galEls, secretKey)
-	//rlk := keygen.GenRelinearizationKey(secretKey, 1)
-	//evk := rlwe.EvaluationKey{
-	//	Rlk:  rlk,
-	//	Rtks: rks,
-	//}
-
 	return evk
 }
 
@@ -393,12 +386,6 @@ func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, k
 	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(key)
 
 	return *evk
-	//rtks := keygen.GenRotationKeys(els, key)
-	//
-	//return rlwe.EvaluationKeySet{
-	//	Rlk:  keygen.GenRelinearizationKey(key, 1),
-	//	Rtks: rtks,
-	//}
 }
 
 func RandomBiases(matrixSize uint64, plainMod uint64) [][]uint64 {
@@ -425,115 +412,3 @@ func RandomMatrices(matrixSize uint64, plainMod uint64) [][][]uint64 {
 	}
 	return m
 }
-
-//func (u *util) babystepgiantstep(state *rlwe.ciphertext, mat1 [][]uint64, mat2 [][]uint64, slots, halfslots uint64) *rlwe.ciphertext {
-//	matrixDim := pasta.T
-//
-//	if ((matrixDim * 2) != int(slots)) && ((matrixDim * 4) > int(halfslots)) {
-//		fmt.Println("too little slots for matmul implementation!")
-//	}
-//
-//	if BsgsN1*BsgsN2 != matrixDim {
-//		fmt.Println("wrong bsgs params")
-//	}
-//
-//	// diagonal method preperation:
-//	matrix := make([]rlwe.Plaintext, matrixDim)
-//	aux := make([][]uint64, matrixDim)
-//	for i := 0; i < matrixDim; i++ {
-//		diag := make([]uint64, matrixDim)
-//		tmp := make([]uint64, matrixDim)
-//
-//		k := uint64(i / BsgsN1)
-//
-//		for j := 0; j < matrixDim; j++ {
-//			diag[j] = mat1[j][(j+matrixDim-i)%matrixDim] // push back
-//			tmp[j] = mat2[j][(j+matrixDim-i)%matrixDim]  // push back
-//		}
-//
-//		// rotate:
-//		if k != 0 {
-//			util.Rotate(diag[0], diag[0]+(uint64(k)*BsgsN1), diag[len(diag)-1], diag) // todo(fedejinich) not sure about using this method
-//			util.Rotate(tmp[0], tmp[0]+(uint64(k)*BsgsN1), tmp[len(tmp)-1], tmp)      // todo(fedejinich) not sure about using this method
-//		}
-//
-//		// prepare for non-full-packed rotations
-//		if halfslots != pasta.T {
-//			newSize := int(halfslots)
-//			diag = resize(diag, newSize, 0)
-//			tmp = resize(tmp, newSize, 0)
-//			for m := uint64(0); m < k*BsgsN1; m++ {
-//				indexSrc := pasta.T - 1 - m
-//				indexDest := halfslots - 1 - m
-//				diag[indexDest] = diag[indexSrc]
-//				diag[indexSrc] = 0
-//				tmp[indexDest] = tmp[indexSrc]
-//				tmp[indexSrc] = 0
-//			}
-//		}
-//
-//		// combine both diags
-//		diag = resize(diag, int(slots), 0)
-//		for j := halfslots; j < slots; j++ {
-//			diag[j] = tmp[j-halfslots]
-//		}
-//
-//		r := bfv.NewPlaintext(u.bfvParams, state.Level())
-//		u.encoder.Encode(diag, r)
-//		matrix[i] = *r // push back
-//		aux[i] = diag  // for debug todo(fedejinich) remove this
-//	}
-//
-//	// prepare for non-full-packed rotations
-//	if halfslots != pasta.T {
-//		s := state.CopyNew()
-//		stateRot := u.evaluator.RotateColumnsNew(s, pasta.T)
-//		state = u.evaluator.AddNew(state, stateRot)
-//	}
-//
-//	// prepare rotations
-//	rot := make([]rlwe.Ciphertext, BsgsN1)
-//	rot[0] = *state
-//	for j := 1; j < BsgsN1; j++ {
-//		rot[j] = *u.evaluator.RotateColumnsNew(&rot[j-1], -1)
-//	}
-//
-//	var outerSum rlwe.Ciphertext
-//	for k := 0; k < BsgsN2; k++ {
-//		fmt.Sprintf("%v\n", k)
-//		innerSum := u.evaluator.MulNew(&rot[0], &matrix[k*BsgsN1]) // no needs relinearization
-//		for j := 1; j < BsgsN1; j++ {
-//			temp := u.evaluator.MulNew(&rot[j], &matrix[k*BsgsN1+j]) // no needs relinearization
-//			u.evaluator.Add(innerSum, temp, innerSum)
-//		}
-//		if k != 0 {
-//			outerSum = *innerSum
-//		} else {
-//			if outerSum.Value == nil { // todo(fedejinich) this is not ideal
-//				outerSum = *rlwe.NewCiphertext(u.bfvParams.Parameters, innerSum.Degree(), innerSum.Level())
-//			}
-//			u.evaluator.RotateColumns(innerSum, -k*BsgsN1, innerSum)
-//			outerSum = *u.evaluator.AddNew(&outerSum, innerSum)
-//		}
-//	}
-//
-//	return &outerSum
-//}
-//
-//func resize(slice []uint64, newSize int, value uint64) []uint64 {
-//	initSize := len(slice)
-//	if initSize >= newSize {
-//		return slice[:newSize]
-//	}
-//
-//	newSlice := make([]uint64, newSize)
-//	for i := 0; i < newSize; i++ {
-//		if i < initSize {
-//			newSlice[i] = slice[i]
-//		} else {
-//			newSlice[i] = value
-//		}
-//	}
-//
-//	return newSlice
-//}

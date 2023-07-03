@@ -422,7 +422,7 @@ func benchTranscipher(b *testing.B, pastaSecretKey, plaintext, ciphertextExpecte
 	})
 
 	// final decrypt
-	decrypted := bfv.DecryptResult(&bfvCiphertext)
+	decrypted := bfv.DecryptPacked(&bfvCiphertext, matrixSize)
 	if !util.EqualSlices(decrypted, plaintext) {
 		b.Errorf("decrypted a different vector")
 		fmt.Printf("matrixSize = %d\n", matrixSize)

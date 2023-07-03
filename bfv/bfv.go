@@ -53,14 +53,14 @@ func NewBFVPasta(pastaParams PastaParams, modDegree, pastaSeclevel, matrixSize, 
 	useBsGs bool, plainMod uint64) BFV {
 	bfvParams := generateBfvParams(plainMod, modDegree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := keygen.GenKeyPairNew()
+	secretKey, _ := keygen.GenKeyPair()
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	evk := EvaluationKeysBfvPasta(matrixSize, pastaSeclevel, modDegree, useBsGs,
-		bsGsN2, bsGsN1, *secretKey, bfvParams, *keygen)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
+		bsGsN2, bsGsN1, *secretKey, bfvParams, keygen)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, evk)
 
 	bfvCipher := NewBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder,
-		pastaParams, *keygen, modDegree, matrixSize, pastaSeclevel)
+		pastaParams, keygen, modDegree, matrixSize, pastaSeclevel)
 
 	return bfvCipher
 }
@@ -127,12 +127,12 @@ func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 func NewBFVBasic(pastaParams PastaParams, modulus, degree uint64, matrixSize uint64) (BFV, Util) {
 	bfvParams := generateBfvParams(modulus, degree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
-	s, _ := keygen.GenKeyPairNew()
-	evk := BasicEvaluationKeys(bfvParams.Parameters, *keygen, s)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
+	s, _ := keygen.GenKeyPair()
+	evk := BasicEvaluationKeys(bfvParams.Parameters, keygen, s)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, *evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 
-	cipher := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, *keygen, degree,
+	cipher := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, pastaParams, keygen, degree,
 		matrixSize, pasta.PastaDefaultSecLevel)
 
 	return cipher, cipher.Util

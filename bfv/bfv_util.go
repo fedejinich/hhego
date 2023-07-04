@@ -2,10 +2,11 @@ package bfv
 
 import (
 	"fmt"
-	util "github.com/fedejinich/hhego"
 	"github.com/fedejinich/hhego/pasta"
+	"github.com/fedejinich/hhego/util"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
+	"math"
 	"math/rand"
 	"time"
 )
@@ -16,15 +17,73 @@ const BsgsN1 = 16
 // BsgsN2 used for babystep-gigantstep
 const BsgsN2 = 8
 
-type Util struct {
+type BFVUtil struct {
 	bfvParams bfv.Parameters
 	encoder   bfv.Encoder
 	evaluator bfv.Evaluator
 	keygen    rlwe.KeyGenerator
 }
 
-func NewUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator, keygen rlwe.KeyGenerator) Util {
-	return Util{bfvParams, encoder, evaluator, keygen}
+func NewBFVUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator, keygen rlwe.KeyGenerator) BFVUtil {
+	return BFVUtil{bfvParams, encoder, evaluator, keygen}
+}
+
+func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
+	var bfvParams bfv.ParametersLiteral
+	if degree == uint64(math.Pow(2, 14)) {
+		fmt.Println("polynomial modDegree (LogN) = 2^14 (16384)")
+		bfvParams = bfv.PN14QP411pq // post-quantum params
+	} else if degree == uint64(math.Pow(2, 15)) {
+		fmt.Println("polynomial modDegree (LogN) = 2^15 (32768)")
+		bfvParams = bfv.PN15QP827pq // post-quantum params
+	} else if degree == uint64(math.Pow(2, 16)) {
+		fmt.Println("polynomial modDegree (LogN) = 2^16 (65536)")
+		bfvParams = bfv.ParametersLiteral{
+			LogN: 16,
+			T:    0xffffffffffc0001,
+			Q: []uint64{0x10000000006e0001,
+				0xfffffffff840001,
+				0x1000000000860001,
+				0xfffffffff6a0001,
+				0x1000000000980001,
+				0xfffffffff5a0001,
+				0x1000000000b00001,
+				0x1000000000ce0001,
+				0xfffffffff2a0001,
+				0xfffffffff240001,
+				0x1000000000f00001,
+				0xffffffffefe0001,
+				0x10000000011a0001,
+				0xffffffffeca0001,
+				0xffffffffe9e0001,
+				0xffffffffe7c0001,
+				0xffffffffe740001,
+				0x10000000019a0001,
+				0x1000000001a00001,
+				0xffffffffe520001,
+				0xffffffffe4c0001,
+				0xffffffffe440001,
+				0x1000000001be0001,
+				0xffffffffe400001},
+			P: []uint64{0x1fffffffffe00001,
+				0x1fffffffffc80001,
+				0x2000000000460001,
+				0x1fffffffffb40001,
+				0x2000000000500001},
+		}
+	} else {
+		panic(fmt.Sprintf("polynomial modDegree not supported (modDegree)"))
+	}
+
+	fmt.Println(fmt.Sprintf("modulus (T) = %d", modulus))
+	bfvParams.T = modulus
+
+	params, err := bfv.NewParametersFromLiteral(bfvParams)
+	if err != nil {
+		panic(fmt.Sprintf("couldn't initialize bfvParams"))
+	}
+
+	return params
 }
 
 func AddRc(state *rlwe.Ciphertext, rc []uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) *rlwe.Ciphertext {
@@ -236,37 +295,38 @@ func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int
 }
 
 // PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
-func PostProcess(decomp []rlwe.Ciphertext, pastaSeclevel, matrixSize uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
+func PostProcess(transcipheredMessage []rlwe.Ciphertext, pastaSeclevel, messageLength uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
 	bfvParams bfv.Parameters) rlwe.Ciphertext {
-	rem := reminder(matrixSize, pastaSeclevel)
+	rem := reminder(messageLength, pastaSeclevel)
 
 	if rem != 0 {
 		mask := make([]uint64, rem) // create a 1s mask
 		for i := range mask {
 			mask[i] = 1
 		}
-		lastIndex := len(decomp) - 1
-		last := decomp[lastIndex].CopyNew()
+		lastIndex := len(transcipheredMessage) - 1
+		last := transcipheredMessage[lastIndex].CopyNew()
 		plaintext := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
 		encoder.Encode(mask, plaintext)
+
 		// mask
-		decomp[lastIndex] = *evaluator.MulNew(last, plaintext) // ct x pt
+		transcipheredMessage[lastIndex] = *evaluator.MulNew(last, plaintext) // ct x pt
 	}
 
 	// flatten ciphertexts
-	ciphertext := decomp[0]
+	ciphertext := transcipheredMessage[0]
 	// todo(fedejinich) this can be optimized PostProcessing at the end of the result add,
 	//   in just one for loop
-	for i := 1; i < len(decomp); i++ {
-		tmp := evaluator.RotateColumnsNew(&decomp[i], -(i * int(pastaSeclevel)))
+	for i := 1; i < len(transcipheredMessage); i++ {
+		tmp := evaluator.RotateColumnsNew(&transcipheredMessage[i], -(i * int(pastaSeclevel)))
 		ciphertext = *evaluator.AddNew(&ciphertext, tmp) // ct + ct
 	}
 
 	return ciphertext
 }
 
-func reminder(matrixSize uint64, pastaSeclevel uint64) uint64 {
-	return matrixSize % pastaSeclevel
+func reminder(messageLength uint64, pastaSeclevel uint64) uint64 {
+	return messageLength % pastaSeclevel
 }
 
 func RandomInputV(N int, plainMod uint64) []uint64 {
@@ -279,11 +339,11 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 }
 
 // EvaluationKeysBfvPasta creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
-func EvaluationKeysBfvPasta(matrixSize uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool,
+func EvaluationKeysBfvPasta(messageLength uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool,
 	bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, keygen rlwe.KeyGenerator) rlwe.EvaluationKeySet {
-	rem := reminder(matrixSize, pastaSeclevel)
+	rem := reminder(messageLength, pastaSeclevel)
 
-	numBlock := int64(matrixSize / pastaSeclevel)
+	numBlock := int64(messageLength / pastaSeclevel)
 	if rem > 0 {
 		numBlock++
 	}
@@ -303,7 +363,7 @@ func EvaluationKeysBfvPasta(matrixSize uint64, pastaSeclevel uint64, modDegree u
 	if useBsGs {
 		addBsGsIndices(bsGsN1, bsGsN2, &gkIndices, modDegree)
 	} else {
-		addDiagonalIndices(matrixSize, &gkIndices, modDegree)
+		addDiagonalIndices(messageLength, &gkIndices, modDegree)
 	}
 
 	// finally we create the right evaluation set (rotation & reliniarization keys)
@@ -359,9 +419,9 @@ func addBsGsIndices(n1 uint64, n2 uint64, gkIndices *[]int, slots uint64) {
 	}
 }
 
-func addDiagonalIndices(matrixSize uint64, gkIndices *[]int, slots uint64) {
-	if matrixSize*2 != slots {
-		*gkIndices = append(*gkIndices, -int(matrixSize))
+func addDiagonalIndices(messageLength uint64, gkIndices *[]int, slots uint64) {
+	if messageLength*2 != slots {
+		*gkIndices = append(*gkIndices, -int(messageLength))
 	}
 	*gkIndices = append(*gkIndices, 1)
 }
@@ -386,29 +446,4 @@ func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, k
 	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(key)
 
 	return *evk
-}
-
-func RandomBiases(matrixSize uint64, plainMod uint64) [][]uint64 {
-	b := make([][]uint64, pasta.NumMatmulsSquares)
-	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		b[r] = make([]uint64, matrixSize)
-		for i := uint64(0); i < matrixSize; i++ {
-			b[r][i] = rand.Uint64() % plainMod
-		}
-	}
-	return b
-}
-
-func RandomMatrices(matrixSize uint64, plainMod uint64) [][][]uint64 {
-	m := make([][][]uint64, pasta.NumMatmulsSquares)
-	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		m[r] = make([][]uint64, matrixSize)
-		for i := uint64(0); i < matrixSize; i++ {
-			m[r][i] = make([]uint64, matrixSize)
-			for j := 0; uint64(j) < matrixSize; j++ {
-				m[r][i][j] = rand.Uint64() % plainMod // not cryptosecure
-			}
-		}
-	}
-	return m
 }

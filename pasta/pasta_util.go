@@ -3,7 +3,6 @@ package pasta
 import "C"
 import (
 	"encoding/binary"
-	"math"
 	"math/big"
 
 	"golang.org/x/crypto/sha3"
@@ -303,9 +302,4 @@ func (u *Util) MixBy(s1, s2 *Block) {
 // todo(fedejinich) only used for testing
 func (u *Util) State() *Block {
 	return &u.state1_
-}
-
-// BlockCount calculates the amount of PASTA-blocks needed
-func (u *Util) BlockCount(messageLength float64, ciphertextSize float64) int {
-	return int(math.Ceil(messageLength / ciphertextSize))
 }

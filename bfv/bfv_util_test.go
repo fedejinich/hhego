@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-const NoMatrixSize = 0
-
 type UtilTestCase struct {
 	modulus   uint64
 	bfvDegree uint64
@@ -20,19 +18,12 @@ func (u *UtilTestCase) Halfslots() int {
 }
 
 func TestUtil(t *testing.T) {
-	testCases := []UtilTestCase{
-		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 15))},
-		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 14))},
-		{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
-		{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
-	}
-
-	for _, tc := range testCases {
+	for _, tc := range UtilTestCases() {
 		t.Run("TestUtil_MatMulDiagonal", func(t *testing.T) {
-			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
+			pastaUtil, _ := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -69,9 +60,50 @@ func TestUtil(t *testing.T) {
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
 		})
+		t.Run("TestUtil_MatMulBSGS", func(t *testing.T) {
+			pastaUtil, _ := newPastaUtil(tc.modulus)
+			pastaUtil.InitShake(uint64(123456789), 0)
+
+			bfv := NewBFV(tc.modulus, tc.bfvDegree)
+
+			s1 := testVec()
+			s2 := testVec2()
+
+			// split the state to the second half of the slots
+			pLength := tc.Halfslots() + len(s1)
+			p := make([]uint64, pLength)
+			for i := 0; i < pasta.T; i++ {
+				p[i] = s1[i]
+				p[i+tc.Halfslots()] = s2[i]
+			}
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
+			bfv.Encoder.Encode(p, pt)
+			ct := bfv.Encrypt(pt)
+
+			r1 := pastaUtil.GetRandomVector(false)
+			r2 := pastaUtil.GetRandomVector(false)
+			mat1 := pastaUtil.RandomMatrixBy(r1)
+			mat2 := pastaUtil.RandomMatrixBy(r2)
+
+			// test MatMul
+			pastaUtil.MatmulBy(s1, r1)
+			pastaUtil.MatmulBy(s2, r2)
+			ct = Matmul(ct, mat1, mat2, tc.bfvDegree, uint64(tc.Halfslots()),
+				bfv.Evaluator, bfv.Encoder, bfv.Params, true)
+
+			state1 := bfv.DecryptPacked(ct, uint64(len(s1)))
+			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
+				t.Errorf("bfv Matmul is not the same as pasta Matmul")
+			}
+
+			state2 := bfv.DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T))[tc.Halfslots():]
+			if !util.EqualSlices(state2, toVec(s2)) { // assert for the 2nd pasta branch
+				t.Errorf("bfv Matmul is not the same as pasta Matmul")
+			}
+		})
 		t.Run("TestUtil_AddRc", func(t *testing.T) {
-			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			pastaUtil, _ := newPastaUtil(tc.modulus)
+			bfv := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -109,8 +141,8 @@ func TestUtil(t *testing.T) {
 		})
 
 		t.Run("TestUtil_Mix", func(t *testing.T) {
-			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			pastaUtil, _ := newPastaUtil(tc.modulus)
+			bfv := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -139,9 +171,9 @@ func TestUtil(t *testing.T) {
 		})
 
 		t.Run("TestUtil_SboxCube", func(t *testing.T) {
-			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
+			pastaUtil, _ := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -176,9 +208,9 @@ func TestUtil(t *testing.T) {
 		})
 
 		t.Run("TestUtil_SboxFeistel", func(t *testing.T) {
-			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
+			pastaUtil, _ := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -213,8 +245,7 @@ func TestUtil(t *testing.T) {
 		})
 
 		t.Run("TestUtil_BasicBFVDecrypt", func(t *testing.T) {
-			_, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv := NewBFV(tc.modulus, tc.bfvDegree)
 
 			vec := testVec()
 
@@ -227,49 +258,15 @@ func TestUtil(t *testing.T) {
 				t.Errorf("not equal slices")
 			}
 		})
+	}
+}
 
-		// todo(fedejinich) complete this test
-		//t.Run("TestUtil_PostProcess", func(t *testing.T) {
-		//	_, pastaParams := newPastaUtil(tc.modulus)
-		//	_, bfvUtil := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree)
-		//
-		//	vec := testVec()
-		//
-		//	PostProcess()
-		//
-		//	// basic bfv decrypt
-		//	if !util.EqualSlices(d, toVec(vec)) {
-		//		t.Errorf("not equal slices")
-		//	}
-		//})
-
-		//t.Run("TestUtil_Affine", func(t *testing.T) {
-		//	matrixSize := 200
-		//	plaintext := RandomInputV(matrixSize, tc.modulus)
-		//	// random matrices
-		//	m := RandomMatrices(uint64(matrixSize), tc.modulus)
-		//	b := RandomBiases(uint64(matrixSize), tc.modulus)
-		//
-		//	computedPlain := make([]uint64, matrixSize)
-		//	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		//		computedPlain = util.Affine(m[r], plaintext, b[r], tc.modulus)
-		//	}
-		//
-		//	_, pastaParams := newPastaUtil(tc.modulus)
-		//	bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree)
-		//	p := bfv.Encoder.EncodeNew(plaintext, bfv.Params.MaxLevel())
-		//	ct := bfv.Encrypt(p)
-		//
-		//	var result rlwe.Ciphertext
-		//	for r := 0; r < pasta.NumMatmulsSquares; r++ {
-		//		result = bfv.PackedAffine(m[r], *ct, b[r])
-		//	}
-		//
-		//	d := bfv.DecryptPacked(&result, uint64(matrixSize))
-		//	if !util.EqualSlices(d, computedPlain) {
-		//		t.Errorf("decrypted different vector after Affine")
-		//	}
-		//})
+func UtilTestCases() []UtilTestCase {
+	return []UtilTestCase{
+		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 15))},
+		{modulus: 65537, bfvDegree: uint64(math.Pow(2, 14))},
+		{modulus: 8088322049, bfvDegree: uint64(math.Pow(2, 15))},
+		//{modulus: 1096486890805657601, bfvDegree: uint64(math.Pow(2, 16))},
 	}
 }
 
@@ -316,11 +313,8 @@ func toVec(b *pasta.Block) []uint64 {
 	return v
 }
 
-func newPastaUtil(modulus uint64) (pasta.Util, PastaParams) {
-	// todo(fedejinich) define default testing params for all pasta tests
-	rounds := 3
-	return pasta.NewUtil(secretKey(), modulus, rounds), PastaParams{rounds, 128,
-		int(modulus)}
+func newPastaUtil(modulus uint64) (pasta.Util, pasta.Params) {
+	return pasta.NewUtil(secretKey(), modulus, int(PastaParams.Rounds)), PastaParams
 }
 
 func secretKey() []uint64 {

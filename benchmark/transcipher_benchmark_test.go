@@ -410,7 +410,7 @@ func benchTranscipher(b *testing.B, pastaSecretKey, plaintext, ciphertextExpecte
 		PastaCiphertextSize: int(PastaParams.CiphertextSize),
 		Modulus:             int(plainMod),
 	}
-	bfv := hhegobfv.NewBFVPasta(bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv := hhegobfv.NewBFVPastaCipher(modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 
 	// homomorphically encrypt secret key
 	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey)
@@ -418,7 +418,7 @@ func benchTranscipher(b *testing.B, pastaSecretKey, plaintext, ciphertextExpecte
 	// move from PASTA ciphertext to BFV ciphertext
 	var bfvCiphertext rlwe.Ciphertext
 	b.Run(benchBfvString("Transcipher", modDegree, plainMod, matrixSize), func(b *testing.B) {
-		bfvCiphertext = bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, useBsGs)
+		bfvCiphertext = bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, useBsGs, bfvPastaParams, secLevel, matrixSize)
 	})
 
 	// final decrypt

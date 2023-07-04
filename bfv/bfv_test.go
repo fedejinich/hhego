@@ -20,7 +20,7 @@ func TestBfv(t *testing.T) {
 			pastaSK := tc.secretKey
 			modulus := tc.modulus
 			pastaParams := PastaParams{3, 128, int(modulus)}
-			bfv, _ := NewBFVBasic(pastaParams, modulus, tc.bfvDegree, 0)
+			bfv, _ := NewBFVBasicCipher(pastaParams, modulus, tc.bfvDegree, 0)
 
 			ciphSK := bfv.EncryptPastaSecretKey(pastaSK)
 

@@ -409,13 +409,13 @@ func testTranscipher(t *testing.T, pastaSecretKey, plaintext, ciphertextExpected
 		PastaCiphertextSize: int(PastaParams.CiphertextSize),
 		Modulus:             int(plainMod),
 	}
-	bfv := hhegobfv.NewBFVPasta(bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv := hhegobfv.NewBFVPastaCipher(modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 
 	// homomorphically encrypt secret key
 	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey)
 
 	// move from PASTA ciphertext to BFV ciphertext
-	bfvCiphertext := bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, useBsGs)
+	bfvCiphertext := bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, useBsGs, bfvPastaParams, secLevel, matrixSize)
 
 	// final decrypt
 	decrypted := bfv.DecryptPacked(&bfvCiphertext, matrixSize)

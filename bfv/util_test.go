@@ -32,7 +32,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -71,7 +71,7 @@ func TestUtil(t *testing.T) {
 		})
 		t.Run("TestUtil_AddRc", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -110,7 +110,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_Mix", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -141,7 +141,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxCube", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -178,7 +178,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxFeistel", func(t *testing.T) {
 			pastaUtil, pastaParams := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -214,7 +214,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_BasicBFVDecrypt", func(t *testing.T) {
 			_, pastaParams := newPastaUtil(tc.modulus)
-			bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
+			bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree, NoMatrixSize)
 
 			vec := testVec()
 
@@ -231,7 +231,7 @@ func TestUtil(t *testing.T) {
 		// todo(fedejinich) complete this test
 		//t.Run("TestUtil_PostProcess", func(t *testing.T) {
 		//	_, pastaParams := newPastaUtil(tc.modulus)
-		//	_, bfvUtil := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+		//	_, bfvUtil := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree)
 		//
 		//	vec := testVec()
 		//
@@ -256,7 +256,7 @@ func TestUtil(t *testing.T) {
 		//	}
 		//
 		//	_, pastaParams := newPastaUtil(tc.modulus)
-		//	bfv, _ := NewBFVBasic(pastaParams, tc.modulus, tc.bfvDegree)
+		//	bfv, _ := NewBFVBasicCipher(pastaParams, tc.modulus, tc.bfvDegree)
 		//	p := bfv.Encoder.EncodeNew(plaintext, bfv.Params.MaxLevel())
 		//	ct := bfv.Encrypt(p)
 		//

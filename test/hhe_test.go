@@ -307,7 +307,7 @@ func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modDegr
 		PastaCiphertextSize: int(PastaParams.CiphertextSize),
 		Modulus:             int(plainMod),
 	}
-	bfv := hhegobfv.NewBFVPasta(bfvPastaParams, modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv := hhegobfv.NewBFVPastaCipher(modDegree, secLevel, matrixSize, bsgN1, bsgN2, useBsGs, plainMod)
 
 	//bfv.printParameters()
 
@@ -321,7 +321,7 @@ func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, modDegr
 	// bfv.printNoise()
 
 	// move from PASTA ciphertext to BFV ciphertext
-	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, useBsGs)
+	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, useBsGs, bfvPastaParams, secLevel, matrixSize)
 
 	// bfv.printNoise()
 

@@ -12,6 +12,18 @@ func EqualSlices(a, b []uint64) bool {
 	return true
 }
 
+func EqualSlices2(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func Rotate(slice []uint64, start, middle, end uint64) []uint64 {
 	if middle < start || middle > end {
 		panic("this shouldnt happen")

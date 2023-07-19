@@ -15,8 +15,8 @@ import "C"
 
 func main() {} // a dummy function
 
-//export Java_org_fedejinich_GoJNI_foo
-func Java_org_fedejinich_GoJNI_foo(env *C.JNIEnv, clazz C.jclass) C.jint {
+//export Java_org_rsksmart_BFV_foo
+func Java_org_rsksmart_BFV_foo(env *C.JNIEnv, clazz C.jclass) C.jint {
 	println("foo() from go")
 	return 1
 }

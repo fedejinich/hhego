@@ -25,3 +25,17 @@ go test hhe_scheme_test.go
 Benchmarks can be found at `~/benchmark` folder. 
 
 WIP
+
+## Build for Java as Shared Library
+
+This project can be build as a shared library to be used from a Java application. To build as shared library go to `PROJECT_ROOT/jni` and run
+
+```bash
+make macos
+
+# or if you're using linux
+
+make linux # todo(fedejinich) this is not implemented yet
+```
+
+This will set the right flags and build it for a `amd64` architecture. Then the output will be on the same `jni` folder.

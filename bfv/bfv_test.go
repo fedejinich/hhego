@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/fedejinich/hhego/util"
+	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"math"
 	"testing"
 )
@@ -49,6 +50,43 @@ func TestBfv(t *testing.T) {
 				20, 10, true)
 		})
 	}
+
+}
+
+// this is only an illustration of the ciphertext explanation ratio problem
+func TestExpantionRatio(t *testing.T) {
+	tc := testCases()[1]
+	pastaSecretKey := tc.secretKey
+	plaintext := tc.plaintext
+	ciphertextExpected := tc.ciphertextExpected
+	modulus := tc.modulus
+	bfvPolyDegree := tc.bfvPolyDegree
+	pastaSecLevel := tc.pastaSecLevel
+
+	pastaCipher := pasta.NewPasta(pastaSecretKey, modulus, PastaParams)
+	pastaCiphertext := pastaCipher.Encrypt(plaintext)
+
+	bfv := NewBFVPastaCipher(bfvPolyDegree, pastaSecLevel, uint64(len(ciphertextExpected)), 20, 10, false, modulus)
+	pt := rlwe.NewPlaintext(bfv.Params.Parameters, bfv.Params.MaxLevel())
+	ptBa, _ := pt.MarshalBinary()
+	ct := bfv.Encrypt(pt)
+	ctBa, _ := ct.MarshalBinary()
+
+	fromMarshal := rlwe.NewCiphertext(bfv.Params.Parameters, ct.Degree(), ct.Level())
+	_ = fromMarshal.UnmarshalBinary(ctBa)
+	_ = bfv.DecryptPacked(fromMarshal, uint64(len(plaintext)))
+
+	if !fromMarshal.Equal(ct) {
+		t.Errorf("dec diferent")
+	}
+
+	fmt.Printf("size of plaintext %d\n", len(plaintext)*8)
+	fmt.Printf("size of pasta encrypted %d\n", len(pastaCiphertext)*8)
+	fmt.Printf("size as bfv plaintext encoded %d\n", len(ptBa))
+	fmt.Printf("size as bfv ciphertext encoded %d\n", len(ctBa))
+
+	er := 5634.95 // todo(fedejinich) calculate this
+	fmt.Printf("plaintext to bfv ciphertext expantion ratio %f\n", er)
 }
 
 func testTranscipher(t *testing.T, pastaSecretKey, plaintext, ciphertextExpected []uint64, plainMod, bfvPolyDegree, secLevel,

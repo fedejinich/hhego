@@ -39,3 +39,13 @@ make linux # todo(fedejinich) this is not implemented yet
 ```
 
 This will set the right flags and build it for a `amd64` architecture. Then the output will be on the same `jni` folder.
+
+### Experimental script 
+
+There's an experimental script that is only tied to my local dev, it can be used to compile shared-library and replace it in Java project. You can adapt it to your needs :)
+
+To run the script:
+
+```bash
+./build_jni.sh
+```

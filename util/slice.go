@@ -1,5 +1,7 @@
 package util
 
+import "encoding/binary"
+
 func EqualSlices(a, b []uint64) bool {
 	if len(a) != len(b) {
 		return false
@@ -42,4 +44,20 @@ func Rotate(slice []uint64, start, middle, end uint64) []uint64 {
 	copy(slice[end-uint64(len(tmp)):], tmp)
 
 	return slice
+}
+
+func BytesToUint64(byteSlice []byte) []uint64 {
+	length := len(byteSlice) / 8
+	uint64Slice := make([]uint64, length)
+
+	for i := 0; i < length; i++ {
+		start := i * 8
+		end := start + 8
+		chunk := byteSlice[start:end]
+
+		uint64Value := binary.BigEndian.Uint64(chunk)
+		uint64Slice[i] = uint64Value
+	}
+
+	return uint64Slice
 }

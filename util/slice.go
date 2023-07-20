@@ -46,6 +46,7 @@ func Rotate(slice []uint64, start, middle, end uint64) []uint64 {
 	return slice
 }
 
+// BytesToUint64 Convert uint64 slice to byte slice
 func BytesToUint64(byteSlice []byte) []uint64 {
 	length := len(byteSlice) / 8
 	uint64Slice := make([]uint64, length)
@@ -60,4 +61,14 @@ func BytesToUint64(byteSlice []byte) []uint64 {
 	}
 
 	return uint64Slice
+}
+
+// Uint64ToBytes Convert uint64 slice to byte slice
+func Uint64ToBytes(uint64Slice []uint64) []byte {
+	byteSlice := make([]byte, len(uint64Slice)*8) // Each uint64 takes 8 bytes
+	for i, value := range uint64Slice {
+		binary.LittleEndian.PutUint64(byteSlice[i*8:], value)
+	}
+
+	return byteSlice
 }

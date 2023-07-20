@@ -63,6 +63,9 @@ func NewBFVPastaCipher(modDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 u
 
 	bfvCipher := newBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, *keygen)
 
+	bfvParams.T()
+	bfvParams.N()
+
 	return bfvCipher
 }
 

@@ -42,16 +42,20 @@ func Java_org_rsksmart_BFV_encrypt(env *C.JNIEnv, obj C.jobject, data C.jbyteArr
 	slice := C.GoBytes(unsafe.Pointer(cData), dataLen)
 	defer C.releaseCByteArray(env, data, cData)
 
-	bfvParams, err, encryptor := bfvEncryptor(bfv.PN15QP827pq)
+	bfvParams, encryptor := bfvEncryptor(bfv.PN15QP827pq)
 
 	// encrypt
 	pt := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
 	bfv.NewEncoder(bfvParams).Encode(util.BytesToUint64(slice), pt)
+	fmt.Println("plaintext bfv")
+	b, _ := pt.MarshalBinary()
+	fmt.Println(b[:100])
 	ct := encryptor.EncryptNew(pt)
 	encryptedOutput, err := ct.MarshalBinary()
-
+	fmt.Println("ciphertext bfv")
+	fmt.Println(encryptedOutput[:100])
 	if err != nil {
-		panic("couldn't initialize bfv") // todo(fedejinich) this is not ok, should return a byte array
+		panic("couldn't serialize encrypted message") // todo(fedejinich) this is not ok, should return a byte array
 	}
 
 	// output
@@ -73,7 +77,62 @@ func Java_org_rsksmart_BFV_encrypt(env *C.JNIEnv, obj C.jobject, data C.jbyteArr
 	return r
 }
 
-func bfvEncryptor(params bfv.ParametersLiteral) (bfv.Parameters, error, rlwe.Encryptor) {
+//export Java_org_rsksmart_BFV_decrypt
+func Java_org_rsksmart_BFV_decrypt(env *C.JNIEnv, obj C.jobject, encrypted C.jbyteArray, encryptedLen C.jint, messageLegnth C.jint) C.jbyteArray {
+	fmt.Println("decrypt()")
+
+	// deserialize
+	cData := C.getCByteArray(env, encrypted)
+	slice := C.GoBytes(unsafe.Pointer(cData), encryptedLen)
+	defer C.releaseCByteArray(env, encrypted, cData)
+
+	fmt.Println("bfv ciphertext")
+	fmt.Println(slice[:100])
+
+	bfvParams, decryptor := bfvDecryptor(bfv.PN15QP827pq)
+
+	// decrypt
+	ct := bfv.NewCiphertext(bfvParams, 1, bfvParams.MaxLevel())
+	err := ct.UnmarshalBinary(slice)
+	if err != nil {
+		panic("decrypt malo malo")
+	}
+	decryptedPlaintext := decryptor.DecryptNew(ct)
+	fmt.Println("bfv plaintext")
+	d, _ := decryptedPlaintext.MarshalBinary()
+	fmt.Println(d[:100])
+
+	decrypted := util.Uint64ToBytes(bfv.NewEncoder(bfvParams).DecodeUintNew(decryptedPlaintext))
+
+	if err != nil {
+		panic("couldn't serialize bfv plaintext") // todo(fedejinich) this is not ok, should return a byte array
+	}
+
+	// output
+	fmt.Println("decrypted")
+	fmt.Println(decrypted[:100])
+	fmt.Println("decrypted after postprocessing")
+	fmt.Println(decrypted[:messageLegnth])
+	out := decrypted[:messageLegnth]
+	var cOutput *C.char = C.CString(string(out))
+	defer C.free(unsafe.Pointer(cOutput))
+	r := C.fromCByteArray(env, cOutput, C.int(len(out)))
+
+	// some tests (will remove them)
+	//cDataR := C.getCByteArray(env, r)
+	//sliceR := C.GoBytes(unsafe.Pointer(cDataR), C.int(len(encryptedOutput)))
+	//defer C.releaseCByteArray(env, r, cDataR)
+	//ctR := bfv.NewCiphertext(bfvParams, ct.Degree(), ct.Level())
+	//ctR.UnmarshalBinary(sliceR)
+	//if !ctR.Equal(ct) {
+	//	panic("encoded cualquier verga en jbyteArray")
+	//}
+	//fmt.Println("decrypt bien piola")
+
+	return r
+}
+
+func bfvEncryptor(params bfv.ParametersLiteral) (bfv.Parameters, rlwe.Encryptor) {
 	bfvParams, err := bfv.NewParametersFromLiteral(params)
 	if err != nil {
 		panic("couldn't initialize bfv") // todo(fedejinich) change this into
@@ -81,5 +140,16 @@ func bfvEncryptor(params bfv.ParametersLiteral) (bfv.Parameters, error, rlwe.Enc
 	secretKey, _ := bfv.NewKeyGenerator(bfvParams).GenKeyPairNew() // todo(fedejinich) this is not ok, the user must provide a sk
 	bfvCipher := bfv.NewEncryptor(bfvParams, secretKey)
 
-	return bfvParams, err, bfvCipher
+	return bfvParams, bfvCipher
+}
+
+func bfvDecryptor(params bfv.ParametersLiteral) (bfv.Parameters, rlwe.Decryptor) {
+	bfvParams, err := bfv.NewParametersFromLiteral(params)
+	if err != nil {
+		panic("couldn't initialize bfv") // todo(fedejinich) change this into
+	}
+	secretKey, _ := bfv.NewKeyGenerator(bfvParams).GenKeyPairNew() // todo(fedejinich) this is not ok, the user must provide a sk
+	bfvCipher := bfv.NewDecryptor(bfvParams, secretKey)
+
+	return bfvParams, bfvCipher
 }

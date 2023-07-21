@@ -21,6 +21,11 @@ func generateCases() {
 			El1:      []uint64{43, 32},
 			El2:      []uint64{12, 23},
 		},
+		{
+			CaseType: util.Mul,
+			El1:      []uint64{43, 32},
+			El2:      []uint64{12, 23},
+		},
 	}
 
 	bfvParams, _ := bfv.NewParametersFromLiteral(bfv.PN15QP827pq)

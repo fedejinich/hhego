@@ -59,6 +59,15 @@ func Java_org_rsksmart_BFV_sub(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, 
 	return r
 }
 
+//export Java_org_rsksmart_BFV_mul
+func Java_org_rsksmart_BFV_mul(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
+	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
+
+	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, util.Mul)
+
+	return r
+}
+
 func internalExecute(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,
 	jOp1 C.jbyteArray, jOp1Len C.jint, opType int) C.jbyteArray {
 	// deserialize

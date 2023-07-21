@@ -2,36 +2,24 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/fedejinich/hhego/util"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"io/ioutil"
 )
 
-const (
-	Add int = iota
-	Sub
-	Mul
-)
-
-type Case struct {
-	caseType int
-	el1      []uint64
-	el2      []uint64
-}
-
-type SerializedCase struct {
-	Operation      int    `json:"operation"`
-	El1            []byte `json:"el1"`
-	El2            []byte `json:"el2"`
-	ExpectedResult []byte `json:"expectedResult"`
-}
-
-func main() {
-	cases := []Case{
+// generates test files
+func generateCases() {
+	cases := []util.Case{
 		{
-			caseType: Add,
-			el1:      []uint64{43, 32},
-			el2:      []uint64{12, 23},
+			CaseType: util.Add,
+			El1:      []uint64{43, 32},
+			El2:      []uint64{12, 23},
+		},
+		{
+			CaseType: util.Sub,
+			El1:      []uint64{43, 32},
+			El2:      []uint64{12, 23},
 		},
 	}
 
@@ -48,26 +36,26 @@ func main() {
 	encoder := bfv.NewEncoder(bfvParams)
 
 	// generate serialized cases
-	serializedCases := make([]SerializedCase, len(cases))
+	serializedCases := make([]util.SerializedCase, len(cases))
 	for i, c := range cases {
 		pt1 := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
 		pt2 := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
 
-		encoder.Encode(c.el1, pt1)
-		encoder.Encode(c.el1, pt2)
+		encoder.Encode(c.El1, pt1)
+		encoder.Encode(c.El1, pt2)
 
 		ct1 := encryptor.EncryptNew(pt1)
 		ct2 := encryptor.EncryptNew(pt2)
 
 		var expectedResult *rlwe.Ciphertext
-		switch c.caseType {
-		case Add:
+		switch c.CaseType {
+		case util.Add:
 			expectedResult = evaluator.AddNew(ct1, ct2)
 			break
-		case Sub:
+		case util.Sub:
 			expectedResult = evaluator.SubNew(ct1, ct2)
 			break
-		case Mul:
+		case util.Mul:
 			{
 				r := evaluator.MulNew(ct1, ct2)
 				// todo(fedejinich) this might be optional
@@ -78,7 +66,7 @@ func main() {
 			panic("this is unexpected")
 		}
 
-		serializedCases[i] = newCase(c.caseType, ct1, ct2, expectedResult)
+		serializedCases[i] = newCase(c.CaseType, ct1, ct2, expectedResult)
 	}
 
 	// Write to a file
@@ -88,12 +76,12 @@ func main() {
 	}
 }
 
-func newCase(caseType int, el1 *rlwe.Ciphertext, el2 *rlwe.Ciphertext, expectedResult *rlwe.Ciphertext) SerializedCase {
+func newCase(caseType int, el1 *rlwe.Ciphertext, el2 *rlwe.Ciphertext, expectedResult *rlwe.Ciphertext) util.SerializedCase {
 	e1, _ := el1.MarshalBinary()
 	e2, _ := el2.MarshalBinary()
 	eR, _ := expectedResult.MarshalBinary()
 
-	return SerializedCase{
+	return util.SerializedCase{
 		Operation:      caseType,
 		El1:            e1,
 		El2:            e2,
@@ -101,10 +89,12 @@ func newCase(caseType int, el1 *rlwe.Ciphertext, el2 *rlwe.Ciphertext, expectedR
 	}
 }
 
-func toJSON(c []SerializedCase) []byte {
+func toJSON(c []util.SerializedCase) []byte {
 	jsonData, err := json.Marshal(c)
 	if err != nil {
 		panic("wrong json produced")
 	}
 	return jsonData
 }
+
+func main() { generateCases() }

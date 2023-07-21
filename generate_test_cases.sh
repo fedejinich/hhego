@@ -1,3 +1,3 @@
-cd test_util &&\
-    go run test_util.go && \
+cd jni &&\
+    go run test_generator.go && \
     mv output.json ../../../hhejava/src/test/resources

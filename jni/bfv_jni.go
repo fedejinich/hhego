@@ -19,12 +19,14 @@ package main
 import "C"
 import (
 	"fmt"
+	"github.com/fedejinich/hhego/util"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"unsafe"
 )
 
-func main() {} // a dummy function
+func main() {
+}
 
 var ParamsLiteral = bfv.PN15QP827pq // todo(fedejinich) should we parametrize this
 var BfvParams, _ = bfv.NewParametersFromLiteral(ParamsLiteral)
@@ -43,12 +45,40 @@ func Java_org_rsksmart_BFV_foo(env *C.JNIEnv, clazz C.jclass) C.jint {
 func Java_org_rsksmart_BFV_add(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
 	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
 
+	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, util.Add)
+
+	return r
+}
+
+//export Java_org_rsksmart_BFV_sub
+func Java_org_rsksmart_BFV_sub(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
+	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
+
+	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, util.Sub)
+
+	return r
+}
+
+func internalExecute(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,
+	jOp1 C.jbyteArray, jOp1Len C.jint, opType int) C.jbyteArray {
 	// deserialize
 	op0Bytes := deserializeOp(env, jOp0, jOp0Len)
 	op1Bytes := deserializeOp(env, jOp1, jOp1Len)
 
-	// add
-	res := Evaluator.AddNew(opCiphertext(op0Bytes), opCiphertext(op1Bytes))
+	// execute
+	res := util.ExecuteOp(Evaluator, opCiphertext(op0Bytes), opCiphertext(op1Bytes), opType)
+	//switch opType {
+	//case Add:
+	//	res = Evaluator.AddNew(opCiphertext(op0Bytes), opCiphertext(op1Bytes))
+	//	break
+	//case Sub:
+	//	res = Evaluator.SubNew(opCiphertext(op0Bytes), opCiphertext(op1Bytes))
+	//	break
+	//case Mul:
+	//	res = Evaluator.MulNew(opCiphertext(op0Bytes), opCiphertext(op1Bytes))
+	//	break
+	//
+	//}
 
 	// output
 	resBytes, _ := res.MarshalBinary()

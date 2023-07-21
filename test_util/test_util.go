@@ -108,7 +108,3 @@ func toJSON(c []SerializedCase) []byte {
 	}
 	return jsonData
 }
-
-func encryptedNum(num int) []byte {
-	return []byte{}
-}

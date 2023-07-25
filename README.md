@@ -32,21 +32,17 @@ This project can be build as a shared library to be used from a Java application
 
 ```bash
 make macos
-
-# or if you're using linux
-
-make linux # todo(fedejinich) this is not implemented yet
-```
+``
 
 This will set the right flags and build it for a `amd64` architecture. Then the output will be on the same `jni` folder.
 
 ### Experimental script 
 
-There are two experimental script:
-1. To compile and inject the new library into the `hhejava` project
+There are two experimental scripts:
+1. To compile and inject the new mac-library into the `hhejava` project
 
 ```bash
-./build_jni.sh
+./build_jni_mac.sh
 ```
 
 
@@ -54,11 +50,4 @@ There are two experimental script:
 
 ```bash
 ./generate_test_cases.sh
-```
-
-
-To run the script:
-
-```bash
-./build_jni.sh
 ```

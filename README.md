@@ -42,7 +42,20 @@ This will set the right flags and build it for a `amd64` architecture. Then the 
 
 ### Experimental script 
 
-There's an experimental script that is only tied to my local dev, it can be used to compile shared-library and replace it in Java project. You can adapt it to your needs :)
+There are two experimental script:
+1. To compile and inject the new library into the `hhejava` project
+
+```bash
+./build_jni.sh
+```
+
+
+2. To generate and replace test data into the `hhejava` project.
+
+```bash
+./generate_test_cases.sh
+```
+
 
 To run the script:
 

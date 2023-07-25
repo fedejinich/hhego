@@ -18,11 +18,11 @@ package main
 // }
 import "C"
 import (
-	"fmt"
+	"unsafe"
+
 	"github.com/fedejinich/hhego/util"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
-	"unsafe"
 )
 
 func main() {
@@ -30,22 +30,12 @@ func main() {
 
 var ParamsLiteral = bfv.PN15QP827pq // todo(fedejinich) should we parametrize this
 var BfvParams, _ = bfv.NewParametersFromLiteral(ParamsLiteral)
-var KeyGenerator = bfv.NewKeyGenerator(BfvParams)
-var SecretKey, _ = KeyGenerator.GenKeyPairNew()             // todo(fedejinich) this will be parametrized
-var RKey = KeyGenerator.GenRelinearizationKeyNew(SecretKey) // todo(fedejinich) this will be calculated on each call
-var Evaluator = evaluatorBy(BfvParams, SecretKey, RKey)     // todo(fedejinich) same for this
-
-//export Java_org_rsksmart_BFV_foo
-func Java_org_rsksmart_BFV_foo(env *C.JNIEnv, clazz C.jclass) C.jint {
-	fmt.Println("foo()")
-	return 1
-}
 
 //export Java_org_rsksmart_BFV_add
 func Java_org_rsksmart_BFV_add(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
 	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
 
-	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, util.Add)
+	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluatorBy(BfvParams, nil), util.Add)
 
 	return r
 }
@@ -54,40 +44,36 @@ func Java_org_rsksmart_BFV_add(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, 
 func Java_org_rsksmart_BFV_sub(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
 	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
 
-	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, util.Sub)
+	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluatorBy(BfvParams, nil), util.Sub)
 
 	return r
 }
 
 //export Java_org_rsksmart_BFV_mul
 func Java_org_rsksmart_BFV_mul(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
-	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
+	jOp1 C.jbyteArray, jOp1Len C.jint, jRelinearizationKey C.jbyteArray, jRelinearizationKeyLen C.jint) C.jbyteArray {
 
-	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, util.Mul)
+	relinearizationKeyBytes := deserializeJByteArray(env, jRelinearizationKey, jRelinearizationKeyLen)
+
+	// create evaluator with relinearization keys
+	rk := rlwe.NewRelinearizationKey(BfvParams.Parameters)
+	rk.UnmarshalBinary(relinearizationKeyBytes)
+	evaluator := evaluatorBy(BfvParams, rk)
+
+	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluator, util.Mul)
 
 	return r
 }
 
 func internalExecute(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,
-	jOp1 C.jbyteArray, jOp1Len C.jint, opType int) C.jbyteArray {
+	jOp1 C.jbyteArray, jOp1Len C.jint, evaluator bfv.Evaluator, opType int) C.jbyteArray {
+
 	// deserialize
-	op0Bytes := deserializeOp(env, jOp0, jOp0Len)
-	op1Bytes := deserializeOp(env, jOp1, jOp1Len)
+	op0Bytes := deserializeJByteArray(env, jOp0, jOp0Len)
+	op1Bytes := deserializeJByteArray(env, jOp1, jOp1Len)
 
 	// execute
-	res := util.ExecuteOp(Evaluator, opCiphertext(op0Bytes), opCiphertext(op1Bytes), opType)
-	//switch opType {
-	//case Add:
-	//	res = Evaluator.AddNew(opCiphertext(op0Bytes), opCiphertext(op1Bytes))
-	//	break
-	//case Sub:
-	//	res = Evaluator.SubNew(opCiphertext(op0Bytes), opCiphertext(op1Bytes))
-	//	break
-	//case Mul:
-	//	res = Evaluator.MulNew(opCiphertext(op0Bytes), opCiphertext(op1Bytes))
-	//	break
-	//
-	//}
+	res := util.ExecuteOp(evaluator, opCiphertext(op0Bytes), opCiphertext(op1Bytes), opType)
 
 	// output
 	resBytes, _ := res.MarshalBinary()
@@ -105,16 +91,19 @@ func opCiphertext(bytes []byte) *rlwe.Ciphertext {
 	return ct
 }
 
-func deserializeOp(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint) []byte {
+func deserializeJByteArray(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint) []byte {
 	cOp0 := C.getCByteArray(env, jOp0)
 	op0 := C.GoBytes(unsafe.Pointer(cOp0), jOp0Len)
 	defer C.releaseCByteArray(env, jOp0, cOp0)
 	return op0
 }
 
-func evaluatorBy(params bfv.Parameters, secretKey *rlwe.SecretKey, rKey *rlwe.RelinearizationKey) bfv.Evaluator {
+func evaluatorBy(params bfv.Parameters, rKey *rlwe.RelinearizationKey) bfv.Evaluator {
 	evk := rlwe.NewEvaluationKeySet()
-	evk.RelinearizationKey = rKey
+	if rKey != nil {
+		evk.RelinearizationKey = rKey
+	}
+
 	evaluator := bfv.NewEvaluator(params, evk)
 
 	return evaluator

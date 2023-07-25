@@ -2,26 +2,31 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
+
 	"github.com/fedejinich/hhego/util"
 	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
-	"io/ioutil"
 )
 
 // generates test files
 func generateCases() {
 	cases := []util.Case{
 		{
+			TestName: "test_add",
 			CaseType: util.Add,
 			El1:      []uint64{43, 32},
 			El2:      []uint64{12, 23},
 		},
 		{
+			TestName: "test_sub",
 			CaseType: util.Sub,
 			El1:      []uint64{43, 32},
 			El2:      []uint64{12, 23},
 		},
 		{
+			TestName: "test_mul",
 			CaseType: util.Mul,
 			El1:      []uint64{43, 32},
 			El2:      []uint64{12, 23},
@@ -52,54 +57,60 @@ func generateCases() {
 		ct1 := encryptor.EncryptNew(pt1)
 		ct2 := encryptor.EncryptNew(pt2)
 
-		var expectedResult *rlwe.Ciphertext
-		switch c.CaseType {
-		case util.Add:
-			expectedResult = evaluator.AddNew(ct1, ct2)
-			break
-		case util.Sub:
-			expectedResult = evaluator.SubNew(ct1, ct2)
-			break
-		case util.Mul:
-			{
-				r := evaluator.MulNew(ct1, ct2)
-				// todo(fedejinich) this might be optional
-				expectedResult = evaluator.RelinearizeNew(r)
-				break
-			}
-		default:
-			panic("this is unexpected")
-		}
+		expectedResult := util.ExecuteOp(evaluator, ct1, ct2, c.CaseType)
 
-		serializedCases[i] = newCase(c.CaseType, ct1, ct2, expectedResult)
+		serializedCases[i] = newCase(c.TestName, c.CaseType, ct1, ct2,
+			expectedResult, secretKey, evk.RelinearizationKey)
+	}
+
+	// write as .json
+	fmt.Println(len(serializedCases))
+	for _, c := range serializedCases {
+		// Write to a file
+		err := ioutil.WriteFile(testName(c.TestName), toJSON(c), 0644)
+		if err != nil {
+			panic("couldn't write to file")
+		}
 	}
 
 	// Write to a file
-	err := ioutil.WriteFile("output.json", toJSON(serializedCases), 0644)
-	if err != nil {
-		panic("couldn't write to file")
-	}
+	// err := ioutil.WriteFile("output.json", toJSON(serializedCases), 0644)
+	// if err != nil {
+	// 	panic("couldn't write to file")
+	// }
 }
 
-func newCase(caseType int, el1 *rlwe.Ciphertext, el2 *rlwe.Ciphertext, expectedResult *rlwe.Ciphertext) util.SerializedCase {
+func newCase(testName string, caseType int, el1 *rlwe.Ciphertext, el2 *rlwe.Ciphertext, expectedResult *rlwe.Ciphertext, key *rlwe.SecretKey, relinearizationKey *rlwe.RelinearizationKey) util.SerializedCase {
+
 	e1, _ := el1.MarshalBinary()
 	e2, _ := el2.MarshalBinary()
 	eR, _ := expectedResult.MarshalBinary()
 
+	sk, _ := key.MarshalBinary()
+	rk, _ := relinearizationKey.MarshalBinary()
+
 	return util.SerializedCase{
-		Operation:      caseType,
-		El1:            e1,
-		El2:            e2,
-		ExpectedResult: eR,
+		TestName:           testName,
+		Operation:          caseType,
+		El1:                e1,
+		El2:                e2,
+		ExpectedResult:     eR,
+		SecretKey:          sk,
+		RelinearizationKey: rk,
 	}
 }
 
-func toJSON(c []util.SerializedCase) []byte {
+func toJSON(c util.SerializedCase) []byte {
 	jsonData, err := json.Marshal(c)
 	if err != nil {
 		panic("wrong json produced")
 	}
 	return jsonData
+}
+
+func testName(name string) string {
+	fmt.Println(name)
+	return fmt.Sprintf("%s.json", name)
 }
 
 func main() { generateCases() }

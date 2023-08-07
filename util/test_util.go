@@ -12,7 +12,7 @@ const (
 	Mul
 )
 
-type Case struct {
+type BasicCase struct {
 	TestName string
 	CaseType int
 	El1      []uint64

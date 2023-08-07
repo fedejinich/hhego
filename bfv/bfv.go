@@ -9,14 +9,15 @@ import (
 )
 
 type BFV struct {
-	encryptor rlwe.Encryptor
-	decryptor rlwe.Decryptor
-	Evaluator bfv.Evaluator
-	Encoder   bfv.Encoder
-	Keygen    rlwe.KeyGenerator
+	encryptor rlwe.Encryptor // todo(fedejinich) this is unnecesary`
+	decryptor rlwe.Decryptor // todo(fedejinich) this is unnecesary
+	Evaluator bfv.Evaluator  // todo(fedejinich) this is unnecesary
+	Encoder   bfv.Encoder    // todo(fedejinich) this is unnecesary
 	Params    bfv.Parameters
-	secretKey rlwe.SecretKey
+	SecretKey rlwe.SecretKey // todo(fedejinich) this should be private
 	Util      BFVUtil
+	Evk       rlwe.EvaluationKeySet
+	GalEls    []uint64
 }
 
 //type PastaParams struct {
@@ -26,16 +27,17 @@ type BFV struct {
 //}
 
 // newBFV default constructor
-func newBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder, keygen rlwe.KeyGenerator) BFV {
+func newBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder, evk rlwe.EvaluationKeySet, galEls []uint64) BFV {
 	return BFV{
 		bfv.NewEncryptor(bfvParams, secretKey),
 		bfv.NewDecryptor(bfvParams, secretKey),
 		evaluator,
 		encoder,
-		keygen,
 		bfvParams,
 		*secretKey,
-		NewBFVUtil(bfvParams, encoder, evaluator, keygen),
+		NewBFVUtil(bfvParams, encoder, evaluator),
+		evk,
+		galEls,
 	}
 }
 
@@ -47,7 +49,7 @@ func NewBFV(modulus, polyDegree uint64) BFV {
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 
-	cipher := newBFV(bfvParams, s, bfvEvaluator, bfvEncoder, *keygen)
+	cipher := newBFV(bfvParams, s, bfvEvaluator, bfvEncoder, evk, []uint64{}) // todo(fedejinich) this is ugly
 
 	return cipher
 }
@@ -61,12 +63,30 @@ func NewBFVPastaCipher(modDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 u
 		bsGsN2, bsGsN1, *secretKey, bfvParams, *keygen)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 
-	bfvCipher := newBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, *keygen)
-
-	bfvParams.T()
-	bfvParams.N()
+	bfvCipher := newBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, evk, []uint64{}) // todo(fedejinich) this is ugly
 
 	return bfvCipher
+}
+
+func NewCipherPastaWithSKAndRK(modDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64, useBsGs bool,
+	plainMod uint64, sk *rlwe.SecretKey, rk *rlwe.RelinearizationKey) BFV {
+
+	bfvParams := generateBfvParams(plainMod, modDegree)
+	bfvEncoder := bfv.NewEncoder(bfvParams)
+	evk, galEls := EvaluationKeysBfvPasta2(messageLength, pastaSeclevel, modDegree, useBsGs, bsGsN2, bsGsN1, *sk, bfvParams, rk)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
+
+	bfvCipher := newBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk, galEls)
+
+	fmt.Println(fmt.Sprintf("NewCipherPasta(modDegree%d,pastaSecLevel%d,messageLen%d,plainMod%d\n",
+		modDegree, pastaSeclevel, messageLength, plainMod))
+
+	return bfvCipher
+}
+
+func (b *BFV) WithEvks(evks rlwe.EvaluationKeySet) {
+	b.Evk = evks
+	b.Evaluator = b.Evaluator.WithKey(&b.Evk)
 }
 
 func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
@@ -74,6 +94,10 @@ func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
 }
 
 // Transcipher translates pasta encrypted messages into bfv encrypted messages
+// NOTE: This is a non-deterministic method, two bfv-ciphers with same SK will
+// return different ciphertexts. This is because GaloisKeys are generated in
+// a non-deterministic way.
+// More details about this https://github.com/tuneinsight/lattigo/discussions/397
 func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Ciphertext, pastaParams pasta.Params, pastaSeclevel uint64) rlwe.Ciphertext {
 	useBsGs := true // enables babystep gigantstep matrix multiplication
 
@@ -170,4 +194,19 @@ func (b *BFV) Slots() uint64 {
 
 func (b *BFV) Halfslots() uint64 {
 	return b.Slots() / 2
+}
+
+func (b *BFV) WithRelinKeys(relinearizationKeyBytes []byte, parameters bfv.Parameters) {
+	// create evaluator with relinearization keys
+	rk := rlwe.NewRelinearizationKey(parameters.Parameters)
+	rk.UnmarshalBinary(relinearizationKeyBytes)
+	b.Evk.RelinearizationKey = rk
+	b.Evaluator = b.Evaluator.WithKey(&b.Evk)
+}
+
+func (b *BFV) WithGalEls(els []uint64, rk *rlwe.RelinearizationKey, sk rlwe.SecretKey) {
+	evks := Genevk(b.Params.Parameters, els, &sk, rk)
+	b.Evk.RelinearizationKey = evks.RelinearizationKey
+	b.Evk.GaloisKeys = evks.GaloisKeys
+	b.Evaluator = b.Evaluator.WithKey(evks)
 }

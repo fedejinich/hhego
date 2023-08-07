@@ -6,10 +6,11 @@ import (
 	"math"
 )
 
-const PastaDefaultSecLevel = 128
+const DefaultSecLevel = 128
 const SecretKeySize = 256
 const PlaintextSize = 128
 const CiphertextSize = 128
+const Rounds = 3
 
 const NumMatmulsSquares = 3
 const LastSquare = false

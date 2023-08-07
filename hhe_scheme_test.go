@@ -278,24 +278,25 @@ func TestHhe3(t *testing.T) {
 //}
 
 // benchmark-testing for hhe scheme
-func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, polyDegree, secLevel, messageLength,
+func hhetest(t *testing.T, pastaSecretKey, message []uint64, plainMod, polyDegree, secLevel, messageLength,
 	bsgN1, bsgN2 uint64, useBsGs bool) {
 
 	// create pasta cipher
 	pastaCipher := pasta.NewPasta(pastaSecretKey, plainMod, PastaParams)
 
 	// create bfv cipher
-	//bfvPastaParams := hhegobfv.PastaParams{
-	//	PastaRounds:         int(PastaParams.Rounds),
-	//	PastaCiphertextSize: int(PastaParams.CiphertextSize),
-	//	Modulus:             int(plainMod),
-	//}
 	bfv := hhegobfv.NewBFVPastaCipher(polyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv2 := hhegobfv.NewBFVPastaCipher(polyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod)
+	keygen := rlwe.NewKeyGenerator(bfv.Params.Parameters)
+	rkBytes, _ := keygen.GenRelinearizationKeyNew(&bfv.SecretKey).
+		MarshalBinary()
+	bfv.WithRelinKeys(rkBytes, bfv.Params)
+	bfv2.WithRelinKeys(rkBytes, bfv.Params)
 
 	//bfv.printParameters()
 
-	// encrypt plaintext with PASTA
-	pastaCiphertext := pastaCipher.Encrypt(plaintext)
+	// encrypt message with PASTA
+	messagePasta := pastaCipher.Encrypt(message)
 
 	// homomorphically encrypt PASTA secret key
 	var pastaSKCiphertext *rlwe.Ciphertext
@@ -304,7 +305,7 @@ func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, polyDeg
 	// bfv.printNoise()
 
 	// move from PASTA ciphertext to BFV ciphertext
-	bfvCiphertext := bfv.Transcipher(pastaCiphertext, pastaSKCiphertext, PastaParams, secLevel)
+	bfvCiphertext := bfv.Transcipher(messagePasta, pastaSKCiphertext, PastaParams, secLevel)
 
 	// bfv.printNoise()
 
@@ -314,7 +315,7 @@ func hhetest(t *testing.T, pastaSecretKey, plaintext []uint64, plainMod, polyDeg
 	// bfv.printNoise()
 
 	// final test
-	if !util.EqualSlices(decrypted, plaintext) {
+	if !util.EqualSlices(decrypted, message) {
 		t.Errorf("decrypted a different vector")
 		fmt.Printf("messageLength = %d\n", messageLength)
 		fmt.Printf("plainMod = %d\n", plainMod)

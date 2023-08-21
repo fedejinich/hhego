@@ -15,8 +15,6 @@ package main
 // }
 import "C"
 import (
-	"bytes"
-	"encoding/binary"
 	bfv2 "github.com/fedejinich/hhego/bfv"
 	"github.com/fedejinich/hhego/pasta"
 	"unsafe"
@@ -36,7 +34,8 @@ var BfvParams, _ = bfv.NewParametersFromLiteral(ParamsLiteral)
 func Java_org_rsksmart_BFV_add(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
 	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
 
-	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluatorBy(BfvParams, nil), util.Add)
+	evaluator := evaluatorWithRK(BfvParams, nil)
+	r := executeOp(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluator, util.Add, BfvParams)
 
 	return r
 }
@@ -45,7 +44,8 @@ func Java_org_rsksmart_BFV_add(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, 
 func Java_org_rsksmart_BFV_sub(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, jOp0Len C.jint,
 	jOp1 C.jbyteArray, jOp1Len C.jint) C.jbyteArray {
 
-	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluatorBy(BfvParams, nil), util.Sub)
+	evaluator := evaluatorWithRK(BfvParams, nil)
+	r := executeOp(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluator, util.Sub, BfvParams)
 
 	return r
 }
@@ -59,9 +59,9 @@ func Java_org_rsksmart_BFV_mul(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, 
 	// create evaluator with relinearization keys
 	rk := rlwe.NewRelinearizationKey(BfvParams.Parameters)
 	rk.UnmarshalBinary(relinearizationKeyBytes)
-	evaluator := evaluatorBy(BfvParams, rk)
+	evaluator := evaluatorWithRK(BfvParams, rk)
 
-	r := internalExecute(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluator, util.Mul)
+	r := executeOp(env, jOp0, jOp0Len, jOp1, jOp1Len, evaluator, util.Mul, BfvParams)
 
 	return r
 }
@@ -86,18 +86,10 @@ func Java_org_rsksmart_BFV_decrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteAr
 	decrypted := bfvCipher.DecryptPacked(data, uint64(dataSize))
 
 	// output
-	d := uint64ArrayToBytes(decrypted)
+	d := util.Uint64ArrayToBytes(decrypted)
 	jByteArray := buildJByteArray(env, d)
 
 	return jByteArray
-}
-
-func buildJByteArray(env *C.JNIEnv, res []byte) C.jbyteArray {
-	var cOutput *C.char = C.CString(string(res))
-	defer C.free(unsafe.Pointer(cOutput))
-	r := C.fromCByteArray(env, cOutput, C.int(len(res)))
-
-	return r
 }
 
 //export Java_org_rsksmart_BFV_encrypt
@@ -106,7 +98,7 @@ func Java_org_rsksmart_BFV_encrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteAr
 
 	// deserialize data
 	dataBytes := jBytesToBytes(env, jData, jDataLen)
-	data := bytesToUint64Array(dataBytes)
+	data := util.BytesToUint64Array(dataBytes)
 
 	// deserialize keys
 	skBytes := jBytesToBytes(env, jSK, jSKLen)
@@ -135,17 +127,17 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 
 	// deserialize keys
 	pastaSkBytes := jBytesToBytes(env, jPastaSK, jPastaSKLen)
-	pastaSK := bytesToCiphertext(pastaSkBytes)
+	pastaSK := util.BytesToCiphertext(pastaSkBytes, BfvParams)
 
 	bfvSKBytes := jBytesToBytes(env, jBfvSK, jBfvSKLen)
-	bfvSK := bytesToSecretKey(bfvSKBytes, BfvParams.Parameters)
+	bfvSK := util.BytesToSecretKey(bfvSKBytes, BfvParams.Parameters)
 
 	rkBytes := jBytesToBytes(env, jRelinKey, jRelinKeyLen)
-	rk := bytesToRelinKey(rkBytes, BfvParams.Parameters)
+	rk := util.BytesToRelinKey(rkBytes, BfvParams.Parameters)
 
 	// deserialize message
 	messageByteArray := jBytesToBytes(env, jEncryptedMessageBytes, jEncryptedMessageLen)
-	message := bytesToUint64Array(messageByteArray)
+	message := util.BytesToUint64Array(messageByteArray)
 
 	bfvCipher := bfv2.NewCipherPastaWithSKAndRK(uint64(BfvParams.N()), pasta.DefaultSecLevel, uint64(len(message)), 20, 10, true, BfvParams.T(), bfvSK, rk)
 
@@ -167,56 +159,31 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 	return r
 }
 
-func uint64ArrayToBytes(message []uint64) []byte {
-	var buf bytes.Buffer
+func executeOp(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,
+	jOp1 C.jbyteArray, jOp1Len C.jint, evaluator bfv.Evaluator, opType int, bfvParams bfv.Parameters) C.jbyteArray {
 
-	for _, v := range message {
-		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
-			panic("cannot convert uint64[] to []byte") // todo(fedejinich) panic?
-		}
-	}
-
-	return buf.Bytes()
-}
-
-func bytesToRelinKey(rkBytes []byte, params rlwe.Parameters) *rlwe.RelinearizationKey {
-	rk := rlwe.NewRelinearizationKey(params)
-	rk.UnmarshalBinary(rkBytes)
-
-	return rk
-}
-
-func bytesToSecretKey(skBytes []byte, params rlwe.Parameters) *rlwe.SecretKey {
-	sk := rlwe.NewSecretKey(params)
-	sk.UnmarshalBinary(skBytes)
-
-	return sk
-}
-
-func internalExecute(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,
-	jOp1 C.jbyteArray, jOp1Len C.jint, evaluator bfv.Evaluator, opType int) C.jbyteArray {
-
-	// bytesToUint64Array
+	// deserialize op
 	op0Bytes := jBytesToBytes(env, jOp0, jOp0Len)
+	op0 := util.BytesToCiphertext(op0Bytes, bfvParams)
 	op1Bytes := jBytesToBytes(env, jOp1, jOp1Len)
+	op1 := util.BytesToCiphertext(op1Bytes, bfvParams)
 
 	// execute
-	res := util.ExecuteOp(evaluator, bytesToCiphertext(op0Bytes), bytesToCiphertext(op1Bytes), opType)
+	res := util.ExecuteOp(evaluator, op0, op1, opType)
 
 	// output
 	resBytes, _ := res.MarshalBinary()
-	var cOutput *C.char = C.CString(string(resBytes)) // todo(fedejinich) will string always work as expected?
-	defer C.free(unsafe.Pointer(cOutput))
-	r := C.fromCByteArray(env, cOutput, C.int(len(resBytes)))
+	r := buildJByteArray(env, resBytes)
 
 	return r
 }
 
-func bytesToCiphertext(bytes []byte) *rlwe.Ciphertext {
-	ct := bfv.NewCiphertext(BfvParams, 1, BfvParams.MaxLevel())
-	ct.UnmarshalBinary(bytes)
+func buildJByteArray(env *C.JNIEnv, res []byte) C.jbyteArray {
+	var cOutput *C.char = C.CString(string(res))
+	defer C.free(unsafe.Pointer(cOutput))
+	r := C.fromCByteArray(env, cOutput, C.int(len(res)))
 
-	return ct
+	return r
 }
 
 func jBytesToBytes(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint) []byte {
@@ -227,7 +194,7 @@ func jBytesToBytes(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint) []byte {
 	return op0
 }
 
-func evaluatorBy(params bfv.Parameters, rKey *rlwe.RelinearizationKey) bfv.Evaluator {
+func evaluatorWithRK(params bfv.Parameters, rKey *rlwe.RelinearizationKey) bfv.Evaluator {
 	evk := rlwe.NewEvaluationKeySet()
 	if rKey != nil {
 		evk.RelinearizationKey = rKey
@@ -236,19 +203,4 @@ func evaluatorBy(params bfv.Parameters, rKey *rlwe.RelinearizationKey) bfv.Evalu
 	evaluator := bfv.NewEvaluator(params, evk)
 
 	return evaluator
-}
-
-func bytesToUint64Array(data []byte) []uint64 {
-	var uint64s []uint64
-
-	buffer := bytes.NewBuffer(data)
-	for buffer.Len() > 0 {
-		var value uint64
-		if err := binary.Read(buffer, binary.LittleEndian, &value); err != nil {
-			panic("cannot convert []byte to []uint64 ") // todo(fedejinich) panic?
-		}
-		uint64s = append(uint64s, value)
-	}
-
-	return uint64s
 }

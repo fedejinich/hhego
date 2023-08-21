@@ -43,9 +43,6 @@ func ExecuteOp(evaluator bfv.Evaluator, ct1 *rlwe.Ciphertext, ct2 *rlwe.Cipherte
 	case Mul:
 		{
 			fmt.Println("ExecuteOpMul")
-			//r := evaluator.MulNew(ct1, ct2)
-			// todo(fedejinich) this might be optional
-			//result = evaluator.RelinearizeNew(r)
 			result = evaluator.MulRelinNew(ct1, ct2)
 			break
 		}

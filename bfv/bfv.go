@@ -171,7 +171,7 @@ func (b *BFV) halfslots() uint64 {
 func evaluationKeysBfvPasta(messageLength uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool, bsGsN2 uint64,
 	bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, rk *rlwe.RelinearizationKey) rlwe.EvaluationKeySet {
 
-	rem := reminder(messageLength, pastaSeclevel)
+	rem := messageLength % pastaSeclevel
 
 	numBlock := int64(messageLength / pastaSeclevel)
 	if rem > 0 {

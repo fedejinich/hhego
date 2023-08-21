@@ -296,7 +296,7 @@ func diagonal(state rlwe.Ciphertext, mat1, mat2 [][]uint64, slots, halfslots int
 // PostProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
 func PostProcess(transcipheredMessage []rlwe.Ciphertext, pastaSeclevel, messageLength uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
 	bfvParams bfv.Parameters) rlwe.Ciphertext {
-	rem := reminder(messageLength, pastaSeclevel)
+	rem := messageLength % pastaSeclevel
 
 	if rem != 0 {
 		mask := make([]uint64, rem) // create a 1s mask
@@ -324,10 +324,6 @@ func PostProcess(transcipheredMessage []rlwe.Ciphertext, pastaSeclevel, messageL
 	return ciphertext
 }
 
-func reminder(messageLength uint64, pastaSeclevel uint64) uint64 {
-	return messageLength % pastaSeclevel
-}
-
 func RandomInputV(N int, plainMod uint64) []uint64 {
 	rand.Seed(time.Now().UnixNano())
 	vi := make([]uint64, 0, N)
@@ -338,14 +334,17 @@ func RandomInputV(N int, plainMod uint64) []uint64 {
 }
 
 func GenEvks(params rlwe.Parameters, galEls []uint64, secretKey *rlwe.SecretKey, rk *rlwe.RelinearizationKey) *rlwe.EvaluationKeySet {
-	// set column rotation galois keys
 	keygen := rlwe.NewKeyGenerator(params)
 	evk := rlwe.NewEvaluationKeySet()
+
+	// set create galois keys (for rotations)
 	for _, e := range galEls {
 		evk.GaloisKeys[e] = keygen.GenGaloisKeyNew(e, secretKey)
 	}
-	// set relineraization key
+
+	// set relineraization key (for mul)
 	evk.RelinearizationKey = rk
+
 	return evk
 }
 
@@ -383,24 +382,17 @@ func addDiagonalIndices(messageLength uint64, gkIndices *[]int, slots uint64) {
 	*gkIndices = append(*gkIndices, 1)
 }
 
-func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, key *rlwe.SecretKey) rlwe.EvaluationKeySet {
+func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, sk *rlwe.SecretKey) rlwe.EvaluationKeySet {
 	galEl := parameters.GaloisElementForColumnRotationBy(-1)
 	galEl2 := parameters.GaloisElementForRowRotation()
 	galEl3 := parameters.GaloisElementForColumnRotationBy(pasta.T) // useful for MatMulTest
 	galEl4 := parameters.GaloisElementForColumnRotationBy(-200)    // useful for Affine test
 	galEl5 := parameters.GaloisElementForColumnRotationBy(1)       // useful for Affine test
-	els := []uint64{galEl, galEl2, galEl3, galEl4, galEl5}
+	galEls := []uint64{galEl, galEl2, galEl3, galEl4, galEl5}
 
 	for k := 0; k < BsgsN2; k++ {
-		els = append(els, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
+		galEls = append(galEls, parameters.GaloisElementForColumnRotationBy(-k*BsgsN1))
 	}
 
-	evk := rlwe.NewEvaluationKeySet()
-	for _, e := range els {
-		evk.GaloisKeys[e] = keygen.GenGaloisKeyNew(e, key)
-	}
-
-	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(key)
-
-	return *evk
+	return *GenEvks(parameters, galEls, sk, keygen.GenRelinearizationKeyNew(sk))
 }

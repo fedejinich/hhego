@@ -59,27 +59,6 @@ func NewBFVPastaCipher(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 
 	return bfvCipher
 }
 
-func NewCipherPastaWithSKAndRK(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64, useBsGs bool,
-	modulus uint64, sk *rlwe.SecretKey, rk *rlwe.RelinearizationKey) BFV {
-
-	bfvParams := GenerateBfvParams(modulus, polyDegree)
-	bfvEncoder := bfv.NewEncoder(bfvParams)
-	evk := EvaluationKeysBfvPasta2(messageLength, pastaSeclevel, polyDegree, useBsGs, bsGsN2, bsGsN1, *sk, bfvParams, rk)
-	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
-
-	bfvCipher := newBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk)
-
-	fmt.Println(fmt.Sprintf("NewCipherPasta(polyDegree%d,pastaSecLevel%d,messageLen%d,modulus%d\n",
-		polyDegree, pastaSeclevel, messageLength, modulus))
-
-	return bfvCipher
-}
-
-func (b *BFV) WithEvks(evks rlwe.EvaluationKeySet) {
-	b.Evk = evks
-	b.Evaluator = b.Evaluator.WithKey(&b.Evk)
-}
-
 func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
 	return b.encryptor.EncryptNew(plaintext)
 }

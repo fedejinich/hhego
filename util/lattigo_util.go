@@ -55,3 +55,7 @@ func BytesToUint64Array(data []byte) []uint64 {
 
 	return uint64s
 }
+
+func HalfSlots(params bfv.Parameters) int {
+	return params.N() / 2
+}

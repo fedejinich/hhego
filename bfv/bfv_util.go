@@ -16,16 +16,6 @@ const BsgsN1 = 16
 // BsgsN2 used for babystep-gigantstep
 const BsgsN2 = 8
 
-type BFVUtil struct {
-	bfvParams bfv.Parameters
-	encoder   bfv.Encoder
-	evaluator bfv.Evaluator
-}
-
-func NewBFVUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Evaluator) BFVUtil {
-	return BFVUtil{bfvParams, encoder, evaluator}
-}
-
 func GenerateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 	var bfvParams bfv.ParametersLiteral
 	if degree == uint64(math.Pow(2, 14)) {

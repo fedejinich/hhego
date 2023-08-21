@@ -290,7 +290,7 @@ func hhetest(t *testing.T, pastaSecretKey, message []uint64, plainMod, polyDegre
 	rk := keygen.GenRelinearizationKeyNew(sk)
 
 	// create bfv cipher
-	bfv := hhegobfv.NewBFVPastaCipher(polyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
+	encryptor, decryptor, evaluator, encoder, bfv := hhegobfv.NewBFVPasta(polyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
 
 	//bfv.printParameters()
 
@@ -299,17 +299,17 @@ func hhetest(t *testing.T, pastaSecretKey, message []uint64, plainMod, polyDegre
 
 	// homomorphically encrypt PASTA secret key
 	var pastaSKCiphertext *rlwe.Ciphertext
-	pastaSKCiphertext = bfv.EncryptPastaSecretKey(pastaSecretKey)
+	pastaSKCiphertext = bfv.EncryptPastaSecretKey(pastaSecretKey, encoder, encryptor)
 
 	// bfv.printNoise()
 
 	// move from PASTA ciphertext to BFV ciphertext
-	bfvCiphertext := bfv.Transcipher(messagePasta, pastaSKCiphertext, PastaParams, secLevel)
+	bfvCiphertext := bfv.Transcipher(messagePasta, pastaSKCiphertext, PastaParams, secLevel, encoder, evaluator)
 
 	// bfv.printNoise()
 
 	// final decrypt
-	decrypted := bfv.DecryptPacked(&bfvCiphertext, messageLength)
+	decrypted := bfv.DecryptPacked(&bfvCiphertext, messageLength, decryptor, encoder)
 
 	// bfv.printNoise()
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/fedejinich/hhego/util"
+	bfv2 "github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"math"
 	"testing"
@@ -27,15 +28,15 @@ func TestBfv(t *testing.T) {
 		t.Run(fmt.Sprintf("Test_EncryptPastaSK %d", i), func(t *testing.T) {
 			pastaSK := tc.secretKey
 			modulus := tc.modulus
-			bfv := NewBFV(modulus, tc.bfvPolyDegree)
+			encryptor, decryptor, _, encoder, bfv := NewBFV(modulus, tc.bfvPolyDegree)
 
-			ciphSK := bfv.EncryptPastaSecretKey(pastaSK)
+			ciphSK := bfv.EncryptPastaSecretKey(pastaSK, encoder, encryptor)
 
-			d := bfv.DecryptPacked(ciphSK, uint64(len(pastaSK)))
+			d := bfv.DecryptPacked(ciphSK, uint64(len(pastaSK)), decryptor, encoder)
 			if !util.EqualSlices(pastaSK[:pasta.T], d[:pasta.T]) {
 				t.Errorf("decrypted different pasta SK 1")
 			}
-			halfslots := bfv.halfslots()
+			halfslots := util.HalfSlots(bfv.params)
 			if !util.EqualSlices(pastaSK[pasta.T:], d[halfslots:halfslots+pasta.T]) {
 				t.Errorf("decrypted different pasta SK 2")
 			}
@@ -67,16 +68,17 @@ func testTranscipher(t *testing.T, pastaSecretKey, plaintext, ciphertextExpected
 	rk := keygen.GenRelinearizationKeyNew(sk)
 
 	// create bfv cipher
-	bfv := NewBFVPastaCipher(bfvPolyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
+	encryptor, decryptor, evaluator, encoder, bfv := NewBFVPasta(bfvPolyDegree, secLevel,
+		messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
 
 	// homomorphically encrypt secret key
-	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey)
+	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey, encoder, encryptor)
 
 	// move from PASTA ciphertext to BFV ciphertext
-	bfvCiphertext := bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, PastaParams, secLevel)
+	bfvCiphertext := bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, PastaParams, secLevel, encoder, evaluator)
 
 	// final decrypt
-	decrypted := bfv.DecryptPacked(&bfvCiphertext, messageLength)
+	decrypted := bfv.DecryptPacked(&bfvCiphertext, messageLength, decryptor, encoder)
 	if !util.EqualSlices(decrypted, plaintext) {
 		t.Errorf("decrypted a different vector")
 		fmt.Printf("messageLength = %d\n", messageLength)
@@ -467,4 +469,17 @@ func testCases() []BFVTestCase {
 		},
 	}
 	return tcs
+}
+
+func NewBFV(modulus, polyDegree uint64) (rlwe.Encryptor, rlwe.Decryptor, bfv2.Evaluator, bfv2.Encoder, BFV) {
+	bfvParams := GenerateBfvParams(modulus, polyDegree)
+	keygen := bfv2.NewKeyGenerator(bfvParams)
+	s, _ := keygen.GenKeyPairNew()
+	evk := BasicEvaluationKeys(bfvParams.Parameters, *keygen, s)
+	bfvEvaluator := bfv2.NewEvaluator(bfvParams, &evk)
+	bfvEncoder := bfv2.NewEncoder(bfvParams)
+
+	encryptor, decryptor, evaluator, _, cipher := newBFV(bfvParams, s, bfvEvaluator, bfvEncoder, evk) // todo(fedejinich) this is ugly
+
+	return encryptor, decryptor, evaluator, bfvEncoder, cipher
 }

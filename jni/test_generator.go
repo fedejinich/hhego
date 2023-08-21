@@ -155,11 +155,11 @@ func generateTranscipherCase() {
 	rlkBytes, _ := rlk.MarshalBinary()
 
 	// new bfv cipher
-	bfvCipher := bfv2.NewBFVPasta(uint64(bfvParams.N()), pasta.DefaultSecLevel, encryptedMessageLen,
+	encryptor, _, _, encoder, bfv := bfv2.NewBFVPasta(uint64(bfvParams.N()), pasta.DefaultSecLevel, encryptedMessageLen,
 		20, 10, true, mod, bfvSk, rlk)
 
 	// BFV encrypt PASTA secret key
-	pastaSKCt := bfvCipher.EncryptPastaSecretKey(pastaSK)
+	pastaSKCt := bfv2.EncryptPastaSecretKey(pastaSK, encoder, encryptor, bfv.Params)
 	pastaSKCtBytes, _ := pastaSKCt.MarshalBinary()
 
 	encryptedMessageBytes := toBytes(encryptedMessage)

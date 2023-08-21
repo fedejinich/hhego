@@ -81,9 +81,9 @@ func Java_org_rsksmart_BFV_decrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteAr
 	data.UnmarshalBinary(dataBytes)
 
 	// todo(fedejinich) replace this with generic encryptor decryptor
-	_, decryptor, _, encoder, bfvCipher := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel, 0,
+	_, decryptor, _, encoder, _ := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel, 0,
 		20, 10, true, BfvParams.T(), sk, nil)
-	decrypted := bfvCipher.DecryptPacked(data, uint64(dataSize), decryptor, encoder)
+	decrypted := bfv2.DecryptPacked(data, uint64(dataSize), decryptor, encoder)
 
 	// output
 	d := util.Uint64ArrayToBytes(decrypted)
@@ -139,7 +139,8 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 	messageByteArray := jBytesToBytes(env, jEncryptedMessageBytes, jEncryptedMessageLen)
 	message := util.BytesToUint64Array(messageByteArray)
 
-	_, _, evaluator, encoder, bfvCipher := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel, uint64(len(message)), 20, 10, true, BfvParams.T(), bfvSK, rk)
+	_, _, evaluator, encoder, _ := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel, uint64(len(message)),
+		20, 10, true, BfvParams.T(), bfvSK, rk)
 
 	// transcipher
 	pastaParams := pasta.Params{
@@ -148,7 +149,7 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 		CiphertextSize: pasta.CiphertextSize,
 		Rounds:         pasta.Rounds,
 	}
-	res := bfvCipher.Transcipher(message, pastaSK, pastaParams, pasta.DefaultSecLevel, encoder, evaluator)
+	res := bfv2.Transcipher(message, pastaSK, pastaParams, pasta.DefaultSecLevel, encoder, evaluator, BfvParams)
 
 	// output
 	resBytes, _ := res.MarshalBinary()

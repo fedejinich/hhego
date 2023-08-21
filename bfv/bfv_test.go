@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// todo(fedejinich) define default testing params for all pasta tests, are these the default params?
+// todo(fedejinich) define default testing Params for all pasta tests, are these the default Params?
 var PastaParams = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlaintextSize: pasta.PlaintextSize,
 	CiphertextSize: pasta.CiphertextSize, Rounds: 3}
 
@@ -30,13 +30,13 @@ func TestBfv(t *testing.T) {
 			modulus := tc.modulus
 			encryptor, decryptor, _, encoder, bfv := NewBFV(modulus, tc.bfvPolyDegree)
 
-			ciphSK := bfv.EncryptPastaSecretKey(pastaSK, encoder, encryptor)
+			ciphSK := EncryptPastaSecretKey(pastaSK, encoder, encryptor, bfv.Params)
 
-			d := bfv.DecryptPacked(ciphSK, uint64(len(pastaSK)), decryptor, encoder)
+			d := DecryptPacked(ciphSK, uint64(len(pastaSK)), decryptor, encoder)
 			if !util.EqualSlices(pastaSK[:pasta.T], d[:pasta.T]) {
 				t.Errorf("decrypted different pasta SK 1")
 			}
-			halfslots := util.HalfSlots(bfv.params)
+			halfslots := util.HalfSlots(bfv.Params)
 			if !util.EqualSlices(pastaSK[pasta.T:], d[halfslots:halfslots+pasta.T]) {
 				t.Errorf("decrypted different pasta SK 2")
 			}
@@ -68,17 +68,18 @@ func testTranscipher(t *testing.T, pastaSecretKey, plaintext, ciphertextExpected
 	rk := keygen.GenRelinearizationKeyNew(sk)
 
 	// create bfv cipher
-	encryptor, decryptor, evaluator, encoder, bfv := NewBFVPasta(bfvPolyDegree, secLevel,
+	encryptor, decryptor, evaluator, encoder, _ := NewBFVPasta(bfvPolyDegree, secLevel,
 		messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
 
 	// homomorphically encrypt secret key
-	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey, encoder, encryptor)
+	pastaSKCiphertext := EncryptPastaSecretKey(pastaSecretKey, encoder, encryptor, bfvParams)
 
 	// move from PASTA ciphertext to BFV ciphertext
-	bfvCiphertext := bfv.Transcipher(ciphertextExpected, pastaSKCiphertext, PastaParams, secLevel, encoder, evaluator)
+	bfvCiphertext := Transcipher(ciphertextExpected, pastaSKCiphertext, PastaParams, secLevel,
+		encoder, evaluator, bfvParams)
 
 	// final decrypt
-	decrypted := bfv.DecryptPacked(&bfvCiphertext, messageLength, decryptor, encoder)
+	decrypted := DecryptPacked(&bfvCiphertext, messageLength, decryptor, encoder)
 	if !util.EqualSlices(decrypted, plaintext) {
 		t.Errorf("decrypted a different vector")
 		fmt.Printf("messageLength = %d\n", messageLength)

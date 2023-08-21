@@ -9,7 +9,7 @@ import (
 )
 
 type BFV struct {
-	params    bfv.Parameters
+	Params    bfv.Parameters
 	secretKey rlwe.SecretKey
 	evk       rlwe.EvaluationKeySet
 }
@@ -43,16 +43,16 @@ func NewBFVPasta(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64
 	return e, d, ev, en, bfvCipher
 }
 
-// Transcipher translates pasta encrypted messages into bfv encrypted messages
+// Transcipher translates pasta encrypted messages into bfv encrypted messages by
+// evaluating the PASTA decryption method in an homomorphic context.
 // NOTE: This is a non-deterministic method, two bfv-ciphers with same SK will
 // return different ciphertexts. This is because GaloisKeys are generated in
 // a non-deterministic way.
 // More details about this https://github.com/tuneinsight/lattigo/discussions/397
-func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Ciphertext, pastaParams pasta.Params,
-	pastaSeclevel uint64, encoder bfv.Encoder, evaluator bfv.Evaluator) rlwe.Ciphertext {
+func Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Ciphertext, pastaParams pasta.Params,
+	pastaSeclevel uint64, encoder bfv.Encoder, evaluator bfv.Evaluator, bfvParams bfv.Parameters) rlwe.Ciphertext {
 	useBsGs := true // enables babystep gigantstep matrix multiplication
 
-	bfvParams := b.params
 	pastaUtil := pasta.NewUtil(nil, bfvParams.T(), int(pastaParams.Rounds)) // todo(fedejinich) plainMod == b.bfvParams.T() == pastaParams.Modulus ?
 
 	encryptedMessageLength := uint64(len(encryptedMessage))
@@ -65,15 +65,15 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Cipher
 	for block := 0; block < numBlock; block++ {
 		pastaUtil.InitShake(pasta.Nonce, uint64(block))
 
-		// 'state' contains the two PASTA branches encoded as b.ciphertext
+		// 'state' contains two PASTA branches encoded as b.ciphertext
 		// s1 := pastaSecretKey[0:halfslots]
 		// s2 := pastaSecretKey[:halfslots]
 		state := pastaSecretKey
 
 		fmt.Printf("block %d/%d\n", block, numBlock)
 
-		slots := b.slots()
-		halfslots := b.halfslots()
+		slots := uint64(bfvParams.N())
+		halfslots := slots / 2
 		for r := 1; r <= int(pastaParams.Rounds); r++ {
 			fmt.Printf("round %d\n", r)
 
@@ -123,7 +123,7 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Cipher
 	return ciphertext
 }
 
-func (b *BFV) DecryptPacked(ciphertext *rlwe.Ciphertext, size uint64,
+func DecryptPacked(ciphertext *rlwe.Ciphertext, size uint64,
 	decryptor rlwe.Decryptor, encoder bfv.Encoder) []uint64 {
 	plaintext := decryptor.DecryptNew(ciphertext)
 	dec := encoder.DecodeUintNew(plaintext)
@@ -131,9 +131,9 @@ func (b *BFV) DecryptPacked(ciphertext *rlwe.Ciphertext, size uint64,
 	return dec[:size]
 }
 
-func (b *BFV) EncryptPastaSecretKey(secretKey []uint64, encoder bfv.Encoder,
-	encryptor rlwe.Encryptor) *rlwe.Ciphertext {
-	halfslots := uint64(b.params.N() / 2)
+func EncryptPastaSecretKey(secretKey []uint64, encoder bfv.Encoder,
+	encryptor rlwe.Encryptor, bfvParams bfv.Parameters) *rlwe.Ciphertext {
+	halfslots := uint64(bfvParams.N() / 2)
 	keyTmp := make([]uint64, halfslots+pasta.T)
 
 	for i := uint64(0); i < pasta.T; i++ {
@@ -142,7 +142,7 @@ func (b *BFV) EncryptPastaSecretKey(secretKey []uint64, encoder bfv.Encoder,
 		keyTmp[i] = secretKey[i]
 		keyTmp[secondHalf] = secretKey[i+pasta.T]
 	}
-	plaintext := bfv.NewPlaintext(b.params, b.params.MaxLevel())
+	plaintext := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
 	encoder.Encode(keyTmp, plaintext)
 
 	return encryptor.EncryptNew(plaintext)
@@ -178,7 +178,7 @@ func postProcess(transcipheredMessage []rlwe.Ciphertext, pastaSeclevel, messageL
 }
 
 func (b *BFV) slots() uint64 {
-	return uint64(b.params.N())
+	return uint64(b.Params.N())
 }
 
 func (b *BFV) halfslots() uint64 {

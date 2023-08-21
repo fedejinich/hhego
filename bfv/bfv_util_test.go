@@ -35,7 +35,7 @@ func TestUtil(t *testing.T) {
 				p[i] = s1[i]
 				p[i+tc.Halfslots()] = s2[i]
 			}
-			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
 			encoder.Encode(p, pt)
 			ct := encryptor.EncryptNew(pt)
 
@@ -48,14 +48,14 @@ func TestUtil(t *testing.T) {
 			pastaUtil.MatmulBy(s1, r1)
 			pastaUtil.MatmulBy(s2, r2)
 			ct = Matmul(ct, mat1, mat2, tc.bfvDegree, uint64(tc.Halfslots()),
-				evaluator, encoder, bfv.params, false)
+				evaluator, encoder, bfv.Params, false)
 
-			state1 := bfv.DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
+			state1 := DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
 			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
 
-			state2 := bfv.DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)[tc.Halfslots():]
+			state2 := DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)[tc.Halfslots():]
 			if !util.EqualSlices(state2, toVec(s2)) { // assert for the 2nd pasta branch
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
@@ -76,7 +76,7 @@ func TestUtil(t *testing.T) {
 				p[i] = s1[i]
 				p[i+tc.Halfslots()] = s2[i]
 			}
-			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
 			encoder.Encode(p, pt)
 			ct := encryptor.EncryptNew(pt)
 
@@ -89,14 +89,14 @@ func TestUtil(t *testing.T) {
 			pastaUtil.MatmulBy(s1, r1)
 			pastaUtil.MatmulBy(s2, r2)
 			ct = Matmul(ct, mat1, mat2, tc.bfvDegree, uint64(tc.Halfslots()),
-				evaluator, encoder, bfv.params, true)
+				evaluator, encoder, bfv.Params, true)
 
-			state1 := bfv.DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
+			state1 := DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
 			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
 
-			state2 := bfv.DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)[tc.Halfslots():]
+			state2 := DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)[tc.Halfslots():]
 			if !util.EqualSlices(state2, toVec(s2)) { // assert for the 2nd pasta branch
 				t.Errorf("bfv Matmul is not the same as pasta Matmul")
 			}
@@ -116,7 +116,7 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
 			encoder.Encode(p, pt)
 			ct := encryptor.EncryptNew(pt)
 
@@ -124,16 +124,16 @@ func TestUtil(t *testing.T) {
 			rcVec := pastaUtil.RCVec(uint64(tc.Halfslots()))
 
 			// test AddRc
-			ct = AddRc(ct, rcVec, encoder, evaluator, bfv.params)
+			ct = AddRc(ct, rcVec, encoder, evaluator, bfv.Params)
 			pastaUtil.AddRcBy(s1, rcVec)
 			pastaUtil.AddRcBy(s2, rcVec[tc.Halfslots():])
 
-			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
+			decrypted := DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
 			if !util.EqualSlices(decrypted, toVec(s1)) {
 				t.Errorf("bfv AddRc is not the same as pasta AddRc")
 			}
 
-			decrypted2 := bfv.DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)
+			decrypted2 := DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)
 			decrypted2 = decrypted2[tc.Halfslots():]
 			if !util.EqualSlices(decrypted2, toVec(s2)) {
 				t.Errorf("bfv AddRc is not the same as pasta AddRc")
@@ -155,7 +155,7 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
 			encoder.Encode(p, pt)
 			ct := encryptor.EncryptNew(pt)
 
@@ -164,7 +164,7 @@ func TestUtil(t *testing.T) {
 			ct = Mix(ct, evaluator, encoder)
 
 			stateAfterMix := toVec(pastaUtil.State())
-			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
+			decrypted := DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
 			if !util.EqualSlices(decrypted, stateAfterMix) {
 				t.Errorf("bfv Mix is not the same as pasta Mix")
 			}
@@ -186,7 +186,7 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
 			encoder.Encode(p, pt)
 			ct := encryptor.EncryptNew(pt)
 
@@ -195,12 +195,12 @@ func TestUtil(t *testing.T) {
 			pastaUtil2.SboxCube(s2)
 			ct = SboxCube(ct, evaluator)
 
-			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
+			decrypted := DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
 			if !util.EqualSlices(decrypted, toVec(s1)) {
 				t.Errorf("bfv SCube is not the same as pasta SCube")
 			}
 
-			decrypted2 := bfv.DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)
+			decrypted2 := DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)
 			decrypted2 = decrypted2[tc.Halfslots():]
 			if !util.EqualSlices(decrypted2, toVec(s2)) {
 				t.Errorf("bfv SCube is not the same as pasta SCube")
@@ -223,21 +223,21 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
 			encoder.Encode(p, pt)
 			ct := encryptor.EncryptNew(pt)
 
 			// test SboxCube
-			ct = SboxFeistel(ct, uint64(tc.Halfslots()), evaluator, encoder, bfv.params)
+			ct = SboxFeistel(ct, uint64(tc.Halfslots()), evaluator, encoder, bfv.Params)
 			pastaUtil.SboxFeistel(s1)
 			pastaUtil2.SboxFeistel(s2)
 
-			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
+			decrypted := DecryptPacked(ct, uint64(len(s1)), decryptor, encoder)
 			if !util.EqualSlices(decrypted, toVec(s1)) {
 				t.Errorf("bfv SFeistel is not the same as pasta SFeistel")
 			}
 
-			decrypted2 := bfv.DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)
+			decrypted2 := DecryptPacked(ct, uint64(tc.Halfslots()+pasta.T), decryptor, encoder)
 			decrypted2 = decrypted2[tc.Halfslots():]
 			if !util.EqualSlices(decrypted2, toVec(s2)) {
 				t.Errorf("bfv SFeistel is not the same as pasta SFeistel")
@@ -250,10 +250,10 @@ func TestUtil(t *testing.T) {
 			vec := testVec()
 
 			// basic bfv decrypt
-			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
 			encoder.Encode(toVec(vec), pt)
 			ct := encryptor.EncryptNew(pt)
-			d := bfv.DecryptPacked(ct, uint64(len(vec)), decryptor, encoder)
+			d := DecryptPacked(ct, uint64(len(vec)), decryptor, encoder)
 			if !util.EqualSlices(d, toVec(vec)) {
 				t.Errorf("not equal slices")
 			}

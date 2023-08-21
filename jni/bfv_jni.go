@@ -17,7 +17,6 @@ import "C"
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	bfv2 "github.com/fedejinich/hhego/bfv"
 	"github.com/fedejinich/hhego/pasta"
 	"unsafe"
@@ -71,25 +70,32 @@ func Java_org_rsksmart_BFV_mul(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, 
 func Java_org_rsksmart_BFV_decrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteArray, jDataLen C.jint,
 	dataSize C.jint, jSK C.jbyteArray, jSKLen C.jint) C.jbyteArray {
 
-	dataBytes := jBytesToBytes(env, jData, jDataLen)
+	// deserialize keys
 	skBytes := jBytesToBytes(env, jSK, jSKLen)
-
-	data := bfv.NewCiphertext(BfvParams, 1, BfvParams.MaxLevel())
-	data.UnmarshalBinary(dataBytes)
-
 	sk := rlwe.NewSecretKey(BfvParams.Parameters)
 	sk.UnmarshalBinary(skBytes)
+
+	// deserialize data
+	dataBytes := jBytesToBytes(env, jData, jDataLen)
+	data := bfv.NewCiphertext(BfvParams, 1, BfvParams.MaxLevel())
+	data.UnmarshalBinary(dataBytes)
 
 	// todo(fedejinich) replace this with generic encryptor decryptor
 	bfvCipher := bfv2.NewCipherPastaWithSKAndRK(uint64(BfvParams.N()), pasta.DefaultSecLevel, 0,
 		20, 10, true, BfvParams.T(), sk, nil)
-	res := bfvCipher.DecryptPacked(data, uint64(dataSize)) // todo(fedejinich) this is hardcoded
+	decrypted := bfvCipher.DecryptPacked(data, uint64(dataSize))
 
 	// output
-	resBytes := uint64ArrayToBytes(res)
-	var cOutput *C.char = C.CString(string(resBytes)) // todo(fedejinich) will string always work as expected?
+	d := uint64ArrayToBytes(decrypted)
+	jByteArray := buildJByteArray(env, d)
+
+	return jByteArray
+}
+
+func buildJByteArray(env *C.JNIEnv, res []byte) C.jbyteArray {
+	var cOutput *C.char = C.CString(string(res))
 	defer C.free(unsafe.Pointer(cOutput))
-	r := C.fromCByteArray(env, cOutput, C.int(len(resBytes)))
+	r := C.fromCByteArray(env, cOutput, C.int(len(res)))
 
 	return r
 }
@@ -98,17 +104,16 @@ func Java_org_rsksmart_BFV_decrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteAr
 func Java_org_rsksmart_BFV_encrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteArray, jDataLen C.jint,
 	jSK C.jbyteArray, jSKLen C.jint) C.jbyteArray {
 
+	// deserialize data
 	dataBytes := jBytesToBytes(env, jData, jDataLen)
-	skBytes := jBytesToBytes(env, jSK, jSKLen)
-
 	data := bytesToUint64Array(dataBytes)
 
-	fmt.Println("this data")
-	fmt.Println(data)
-
+	// deserialize keys
+	skBytes := jBytesToBytes(env, jSK, jSKLen)
 	sk := rlwe.NewSecretKey(BfvParams.Parameters)
 	sk.UnmarshalBinary(skBytes)
 
+	// encrypt
 	encoder := bfv.NewEncoder(BfvParams)
 	dataPt := bfv.NewPlaintext(BfvParams, BfvParams.MaxLevel())
 	encoder.Encode(data, dataPt)
@@ -118,24 +123,9 @@ func Java_org_rsksmart_BFV_encrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteAr
 
 	// output
 	resBytes, _ := dataCt.MarshalBinary()
-	var cOutput *C.char = C.CString(string(resBytes)) // todo(fedejinich) will string always work as expected?
-	defer C.free(unsafe.Pointer(cOutput))
-	r := C.fromCByteArray(env, cOutput, C.int(len(resBytes)))
+	r := buildJByteArray(env, resBytes)
 
 	return r
-}
-
-func uint64ArrayToBytes(message []uint64) []byte {
-	var buf bytes.Buffer
-
-	for _, v := range message {
-		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
-			// Handle error if needed
-			fmt.Println("binary.Write failed:", err)
-		}
-	}
-
-	return buf.Bytes()
 }
 
 //export Java_org_rsksmart_BFV_transcipher
@@ -175,6 +165,18 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 	r := C.fromCByteArray(env, cOutput, C.int(len(resBytes)))
 
 	return r
+}
+
+func uint64ArrayToBytes(message []uint64) []byte {
+	var buf bytes.Buffer
+
+	for _, v := range message {
+		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
+			panic("cannot convert uint64[] to []byte") // todo(fedejinich) panic?
+		}
+	}
+
+	return buf.Bytes()
 }
 
 func bytesToRelinKey(rkBytes []byte, params rlwe.Parameters) *rlwe.RelinearizationKey {
@@ -243,8 +245,7 @@ func bytesToUint64Array(data []byte) []uint64 {
 	for buffer.Len() > 0 {
 		var value uint64
 		if err := binary.Read(buffer, binary.LittleEndian, &value); err != nil {
-			// Handle error if needed
-			fmt.Println("binary.Read failed:", err)
+			panic("cannot convert []byte to []uint64 ") // todo(fedejinich) panic?
 		}
 		uint64s = append(uint64s, value)
 	}

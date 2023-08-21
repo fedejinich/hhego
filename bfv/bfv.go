@@ -129,7 +129,10 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Cipher
 		result[block] = *b.evaluator.AddNew(state, plaintext) // ct + pt
 	}
 
-	return PostProcess(result, pastaSeclevel, encryptedMessageLength, b.evaluator, b.encoder, b.params)
+	// flatten pasta blocks
+	ciphertext := postProcess(result, pastaSeclevel, encryptedMessageLength, b.evaluator, b.encoder, b.params)
+
+	return ciphertext
 }
 
 func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {
@@ -157,6 +160,35 @@ func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
 	b.encoder.Encode(keyTmp, plaintext)
 
 	return b.Encrypt(plaintext)
+}
+
+// postProcess creates and applies a masking vector and flattens transciphered pasta blocks into one ciphertext
+func postProcess(transcipheredMessage []rlwe.Ciphertext, pastaSeclevel, messageLength uint64, evaluator bfv.Evaluator, encoder bfv.Encoder,
+	bfvParams bfv.Parameters) rlwe.Ciphertext {
+	rem := messageLength % pastaSeclevel
+
+	if rem != 0 {
+		mask := make([]uint64, rem) // create a 1s mask
+		for i := range mask {
+			mask[i] = 1
+		}
+		lastIndex := len(transcipheredMessage) - 1
+		last := transcipheredMessage[lastIndex].CopyNew()
+		plaintext := bfv.NewPlaintext(bfvParams, bfvParams.MaxLevel())
+		encoder.Encode(mask, plaintext)
+
+		// mask
+		transcipheredMessage[lastIndex] = *evaluator.MulNew(last, plaintext) // ct x pt
+	}
+
+	// flatten ciphertexts
+	ciphertext := transcipheredMessage[0]
+	for i := 1; i < len(transcipheredMessage); i++ {
+		tmp := evaluator.RotateColumnsNew(&transcipheredMessage[i], -(i * int(pastaSeclevel)))
+		ciphertext = *evaluator.AddNew(&ciphertext, tmp) // ct + ct
+	}
+
+	return ciphertext
 }
 
 func (b *BFV) slots() uint64 {

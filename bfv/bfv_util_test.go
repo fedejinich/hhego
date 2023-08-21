@@ -35,8 +35,8 @@ func TestUtil(t *testing.T) {
 				p[i] = s1[i]
 				p[i+tc.Halfslots()] = s2[i]
 			}
-			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
-			bfv.Encoder.Encode(p, pt)
+			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			bfv.encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			r1 := pastaUtil.GetRandomVector(false)
@@ -48,7 +48,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil.MatmulBy(s1, r1)
 			pastaUtil.MatmulBy(s2, r2)
 			ct = Matmul(ct, mat1, mat2, tc.bfvDegree, uint64(tc.Halfslots()),
-				bfv.Evaluator, bfv.Encoder, bfv.Params, false)
+				bfv.evaluator, bfv.encoder, bfv.params, false)
 
 			state1 := bfv.DecryptPacked(ct, uint64(len(s1)))
 			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
@@ -76,8 +76,8 @@ func TestUtil(t *testing.T) {
 				p[i] = s1[i]
 				p[i+tc.Halfslots()] = s2[i]
 			}
-			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
-			bfv.Encoder.Encode(p, pt)
+			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			bfv.encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			r1 := pastaUtil.GetRandomVector(false)
@@ -89,7 +89,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil.MatmulBy(s1, r1)
 			pastaUtil.MatmulBy(s2, r2)
 			ct = Matmul(ct, mat1, mat2, tc.bfvDegree, uint64(tc.Halfslots()),
-				bfv.Evaluator, bfv.Encoder, bfv.Params, true)
+				bfv.evaluator, bfv.encoder, bfv.params, true)
 
 			state1 := bfv.DecryptPacked(ct, uint64(len(s1)))
 			if !util.EqualSlices(state1, toVec(s1)) { // assert for the 1st pasta branch
@@ -116,15 +116,15 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
-			bfv.Encoder.Encode(p, pt)
+			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			bfv.encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			pastaUtil.InitShake(uint64(123456789), 0)
 			rcVec := pastaUtil.RCVec(uint64(tc.Halfslots()))
 
 			// test AddRc
-			ct = AddRc(ct, rcVec, bfv.Encoder, bfv.Evaluator, bfv.Params)
+			ct = AddRc(ct, rcVec, bfv.encoder, bfv.evaluator, bfv.params)
 			pastaUtil.AddRcBy(s1, rcVec)
 			pastaUtil.AddRcBy(s2, rcVec[tc.Halfslots():])
 
@@ -155,13 +155,13 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
-			bfv.Encoder.Encode(p, pt)
+			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			bfv.encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test Mix
 			pastaUtil.MixBy(s1, s2)
-			ct = Mix(ct, bfv.Evaluator, bfv.Encoder)
+			ct = Mix(ct, bfv.evaluator, bfv.encoder)
 
 			stateAfterMix := toVec(pastaUtil.State())
 			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
@@ -186,14 +186,14 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
-			bfv.Encoder.Encode(p, pt)
+			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			bfv.encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
 			pastaUtil.SboxCube(s1)
 			pastaUtil2.SboxCube(s2)
-			ct = SboxCube(ct, bfv.Evaluator)
+			ct = SboxCube(ct, bfv.evaluator)
 
 			decrypted := bfv.DecryptPacked(ct, uint64(len(s1)))
 			if !util.EqualSlices(decrypted, toVec(s1)) {
@@ -223,12 +223,12 @@ func TestUtil(t *testing.T) {
 				p[i+tc.Halfslots()] = s2[i]
 			}
 
-			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
-			bfv.Encoder.Encode(p, pt)
+			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			bfv.encoder.Encode(p, pt)
 			ct := bfv.Encrypt(pt)
 
 			// test SboxCube
-			ct = SboxFeistel(ct, uint64(tc.Halfslots()), bfv.Evaluator, bfv.Encoder, bfv.Params)
+			ct = SboxFeistel(ct, uint64(tc.Halfslots()), bfv.evaluator, bfv.encoder, bfv.params)
 			pastaUtil.SboxFeistel(s1)
 			pastaUtil2.SboxFeistel(s2)
 
@@ -250,8 +250,8 @@ func TestUtil(t *testing.T) {
 			vec := testVec()
 
 			// basic bfv decrypt
-			pt := bfv2.NewPlaintext(bfv.Params, bfv.Params.MaxLevel())
-			bfv.Encoder.Encode(toVec(vec), pt)
+			pt := bfv2.NewPlaintext(bfv.params, bfv.params.MaxLevel())
+			bfv.encoder.Encode(toVec(vec), pt)
 			ct := bfv.Encrypt(pt)
 			d := bfv.DecryptPacked(ct, uint64(len(vec)))
 			if !util.EqualSlices(d, toVec(vec)) {

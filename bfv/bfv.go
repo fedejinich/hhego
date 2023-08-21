@@ -9,14 +9,14 @@ import (
 )
 
 type BFV struct {
-	encryptor rlwe.Encryptor // todo(fedejinich) this is unnecesary`
-	decryptor rlwe.Decryptor // todo(fedejinich) this is unnecesary
-	Evaluator bfv.Evaluator  // todo(fedejinich) this is unnecesary
-	Encoder   bfv.Encoder    // todo(fedejinich) this is unnecesary
-	Params    bfv.Parameters
-	SecretKey rlwe.SecretKey // todo(fedejinich) this should be private
-	Util      BFVUtil
-	Evk       rlwe.EvaluationKeySet
+	encryptor rlwe.Encryptor
+	decryptor rlwe.Decryptor
+	evaluator bfv.Evaluator
+	encoder   bfv.Encoder
+	params    bfv.Parameters
+	secretKey rlwe.SecretKey
+	util      BFVUtil
+	evk       rlwe.EvaluationKeySet
 }
 
 // newBFV default constructor
@@ -71,7 +71,7 @@ func (b *BFV) Encrypt(plaintext *rlwe.Plaintext) *rlwe.Ciphertext {
 func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Ciphertext, pastaParams pasta.Params, pastaSeclevel uint64) rlwe.Ciphertext {
 	useBsGs := true // enables babystep gigantstep matrix multiplication
 
-	pastaUtil := pasta.NewUtil(nil, b.Params.T(), int(pastaParams.Rounds)) // todo(fedejinich) plainMod == b.Params.T() == pastaParams.Modulus ?
+	pastaUtil := pasta.NewUtil(nil, b.params.T(), int(pastaParams.Rounds)) // todo(fedejinich) plainMod == b.params.T() == pastaParams.Modulus ?
 
 	encryptedMessageLength := uint64(len(encryptedMessage))
 
@@ -95,16 +95,16 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Cipher
 
 			mat1 := pastaUtil.RandomMatrix()
 			mat2 := pastaUtil.RandomMatrix()
-			rc := pastaUtil.RCVec(b.Halfslots())
+			rc := pastaUtil.RCVec(b.halfslots())
 
-			state = Matmul(state, mat1, mat2, b.Slots(), b.Halfslots(), b.Evaluator, b.Encoder, b.Params, useBsGs)
-			state = AddRc(state, rc, b.Encoder, b.Evaluator, b.Params)
-			state = Mix(state, b.Evaluator, b.Encoder)
+			state = Matmul(state, mat1, mat2, b.slots(), b.halfslots(), b.evaluator, b.encoder, b.params, useBsGs)
+			state = AddRc(state, rc, b.encoder, b.evaluator, b.params)
+			state = Mix(state, b.evaluator, b.encoder)
 
 			if r == int(pastaParams.Rounds) {
-				state = SboxCube(state, b.Evaluator)
+				state = SboxCube(state, b.evaluator)
 			} else {
-				state = SboxFeistel(state, b.Halfslots(), b.Evaluator, b.Encoder, b.Params)
+				state = SboxFeistel(state, b.halfslots(), b.evaluator, b.encoder, b.params)
 			}
 		}
 
@@ -112,24 +112,24 @@ func (b *BFV) Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Cipher
 
 		mat1 := pastaUtil.RandomMatrix()
 		mat2 := pastaUtil.RandomMatrix()
-		rc := pastaUtil.RCVec(b.Halfslots())
+		rc := pastaUtil.RCVec(b.halfslots())
 
-		state = Matmul(state, mat1, mat2, b.Slots(), b.Halfslots(), b.Evaluator, b.Encoder, b.Params, useBsGs)
-		state = AddRc(state, rc, b.Encoder, b.Evaluator, b.Params)
-		state = Mix(state, b.Evaluator, b.Encoder)
+		state = Matmul(state, mat1, mat2, b.slots(), b.halfslots(), b.evaluator, b.encoder, b.params, useBsGs)
+		state = AddRc(state, rc, b.encoder, b.evaluator, b.params)
+		state = Mix(state, b.evaluator, b.encoder)
 
 		// add cipher
 		start := 0 + (block * int(pastaParams.CiphertextSize))
 		end := math.Min(float64((block+1)*int(pastaParams.CiphertextSize)), float64(encryptedMessageLength))
 		cipherTmp := encryptedMessage[start:int(end)]
 
-		plaintext := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
-		b.Encoder.Encode(cipherTmp, plaintext)
-		state = b.Evaluator.NegNew(state)
-		result[block] = *b.Evaluator.AddNew(state, plaintext) // ct + pt
+		plaintext := bfv.NewPlaintext(b.params, b.params.MaxLevel())
+		b.encoder.Encode(cipherTmp, plaintext)
+		state = b.evaluator.NegNew(state)
+		result[block] = *b.evaluator.AddNew(state, plaintext) // ct + pt
 	}
 
-	return PostProcess(result, pastaSeclevel, encryptedMessageLength, b.Evaluator, b.Encoder, b.Params)
+	return PostProcess(result, pastaSeclevel, encryptedMessageLength, b.evaluator, b.encoder, b.params)
 }
 
 func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {
@@ -138,45 +138,46 @@ func (b *BFV) Decrypt(ciphertext *rlwe.Ciphertext) *rlwe.Plaintext {
 
 func (b *BFV) DecryptPacked(ciphertext *rlwe.Ciphertext, size uint64) []uint64 {
 	plaintext := b.decryptor.DecryptNew(ciphertext)
-	dec := b.Encoder.DecodeUintNew(plaintext)
+	dec := b.encoder.DecodeUintNew(plaintext)
 
 	return dec[:size]
 }
 
 func (b *BFV) EncryptPastaSecretKey(secretKey []uint64) *rlwe.Ciphertext {
-	keyTmp := make([]uint64, b.Halfslots()+pasta.T)
+	halfslots := uint64(b.params.N() / 2)
+	keyTmp := make([]uint64, halfslots+pasta.T)
 
-	for i := 0; i < pasta.T; i++ {
-		secondHalf := i + int(b.Halfslots())
+	for i := uint64(0); i < pasta.T; i++ {
+		secondHalf := i + halfslots
 
 		keyTmp[i] = secretKey[i]
 		keyTmp[secondHalf] = secretKey[i+pasta.T]
 	}
-	plaintext := bfv.NewPlaintext(b.Params, b.Params.MaxLevel())
-	b.Encoder.Encode(keyTmp, plaintext)
+	plaintext := bfv.NewPlaintext(b.params, b.params.MaxLevel())
+	b.encoder.Encode(keyTmp, plaintext)
 
 	return b.Encrypt(plaintext)
 }
 
-func (b *BFV) Slots() uint64 {
-	return uint64(b.Params.N())
+func (b *BFV) slots() uint64 {
+	return uint64(b.params.N())
 }
 
-func (b *BFV) Halfslots() uint64 {
-	return b.Slots() / 2
+func (b *BFV) halfslots() uint64 {
+	return b.slots() / 2
 }
 
 func (b *BFV) WithRelinKeys(relinearizationKeyBytes []byte, parameters bfv.Parameters) {
 	// create evaluator with relinearization keys
 	rk := rlwe.NewRelinearizationKey(parameters.Parameters)
 	rk.UnmarshalBinary(relinearizationKeyBytes)
-	b.Evk.RelinearizationKey = rk
-	b.Evaluator = b.Evaluator.WithKey(&b.Evk)
+	b.evk.RelinearizationKey = rk
+	b.evaluator = b.evaluator.WithKey(&b.evk)
 }
 
 func (b *BFV) WithGalEls(els []uint64, rk *rlwe.RelinearizationKey, sk rlwe.SecretKey) {
-	evks := Genevk(b.Params.Parameters, els, &sk, rk)
-	b.Evk.RelinearizationKey = evks.RelinearizationKey
-	b.Evk.GaloisKeys = evks.GaloisKeys
-	b.Evaluator = b.Evaluator.WithKey(evks)
+	evks := Genevk(b.params.Parameters, els, &sk, rk)
+	b.evk.RelinearizationKey = evks.RelinearizationKey
+	b.evk.GaloisKeys = evks.GaloisKeys
+	b.evaluator = b.evaluator.WithKey(evks)
 }

@@ -450,7 +450,7 @@ func genEVK(gkIndices []int, params rlwe.Parameters, keygen rlwe.KeyGenerator, s
 	for _, e := range galEls {
 		evk.GaloisKeys[e] = keygen.GenGaloisKeyNew(e, secretKey)
 	}
-	//evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(SecretKey)
+	//evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(secretKey)
 
 	return evk
 }

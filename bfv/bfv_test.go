@@ -35,7 +35,8 @@ func TestBfv(t *testing.T) {
 			if !util.EqualSlices(pastaSK[:pasta.T], d[:pasta.T]) {
 				t.Errorf("decrypted different pasta SK 1")
 			}
-			if !util.EqualSlices(pastaSK[pasta.T:], d[bfv.Halfslots():bfv.Halfslots()+pasta.T]) {
+			halfslots := bfv.halfslots()
+			if !util.EqualSlices(pastaSK[pasta.T:], d[halfslots:halfslots+pasta.T]) {
 				t.Errorf("decrypted different pasta SK 2")
 			}
 		})

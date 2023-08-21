@@ -50,7 +50,7 @@ func NewBFVPastaCipher(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 
 	sk *rlwe.SecretKey, rk *rlwe.RelinearizationKey) BFV {
 	bfvParams := GenerateBfvParams(modulus, polyDegree)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	evk := EvaluationKeysBfvPasta2(messageLength, pastaSeclevel, polyDegree, useBsGs,
+	evk := evaluationKeysBfvPasta(messageLength, pastaSeclevel, polyDegree, useBsGs,
 		bsGsN2, bsGsN1, *sk, bfvParams, rk)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 
@@ -167,17 +167,54 @@ func (b *BFV) halfslots() uint64 {
 	return b.slots() / 2
 }
 
-func (b *BFV) WithRelinKeys(relinearizationKeyBytes []byte, parameters bfv.Parameters) {
-	// create evaluator with relinearization keys
-	rk := rlwe.NewRelinearizationKey(parameters.Parameters)
-	rk.UnmarshalBinary(relinearizationKeyBytes)
-	b.evk.RelinearizationKey = rk
-	b.evaluator = b.evaluator.WithKey(&b.evk)
+// evaluationKeysBfvPasta creates evaluation keys (for rotations and relinearization) to transcipher from pasta to bfv
+func evaluationKeysBfvPasta(messageLength uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool, bsGsN2 uint64,
+	bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, rk *rlwe.RelinearizationKey) rlwe.EvaluationKeySet {
+
+	rem := reminder(messageLength, pastaSeclevel)
+
+	numBlock := int64(messageLength / pastaSeclevel)
+	if rem > 0 {
+		numBlock++
+	}
+	var flattenGks []int
+	for i := int64(1); i < numBlock; i++ {
+		flattenGks = append(flattenGks, -int(i*int64(pastaSeclevel)))
+	}
+
+	var gkIndices []int
+	gkIndices = addGkIndices(gkIndices, modDegree, useBsGs)
+
+	// add flatten gks
+	for i := 0; i < len(flattenGks); i++ {
+		gkIndices = append(gkIndices, flattenGks[i])
+	}
+
+	if useBsGs {
+		addBsGsIndices(bsGsN1, bsGsN2, &gkIndices, modDegree)
+	} else {
+		addDiagonalIndices(messageLength, &gkIndices, modDegree)
+	}
+
+	// finally we create the right evaluation set (rotation & reliniarization keys)
+	evk := buildEvks(gkIndices, bfvParams.Parameters, &secretKey, rk)
+
+	return *evk
 }
 
-func (b *BFV) WithGalEls(els []uint64, rk *rlwe.RelinearizationKey, sk rlwe.SecretKey) {
-	evks := Genevk(b.params.Parameters, els, &sk, rk)
-	b.evk.RelinearizationKey = evks.RelinearizationKey
-	b.evk.GaloisKeys = evks.GaloisKeys
-	b.evaluator = b.evaluator.WithKey(evks)
+func buildEvks(gkIndices []int, params rlwe.Parameters, secretKey *rlwe.SecretKey, rk *rlwe.RelinearizationKey) *rlwe.EvaluationKeySet {
+	galEls := make([]uint64, len(gkIndices))
+	for i, rot := range gkIndices {
+		// SEAL uses gkIndex = 0 to represent a column rotation (row in lattigo)
+		//    we fix this by generating the right gk for 0 elements
+		if rot == 0 {
+			galEls[i] = params.GaloisElementForRowRotation()
+		} else {
+			galEls[i] = params.GaloisElementForColumnRotationBy(rot)
+		}
+	}
+
+	evk := GenEvks(params, galEls, secretKey, rk)
+
+	return evk
 }

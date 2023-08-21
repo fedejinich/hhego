@@ -284,14 +284,16 @@ func hhetest(t *testing.T, pastaSecretKey, message []uint64, plainMod, polyDegre
 	// create pasta cipher
 	pastaCipher := pasta.NewPasta(pastaSecretKey, plainMod, PastaParams)
 
+	bfvParams := hhegobfv.GenerateBfvParams(plainMod, polyDegree)
+	keygen := rlwe.NewKeyGenerator(bfvParams.Parameters)
+	sk, _ := keygen.GenKeyPairNew()
+	rk := keygen.GenRelinearizationKeyNew(sk)
+
 	// create bfv cipher
-	bfv := hhegobfv.NewBFVPastaCipher(polyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod)
-	bfv2 := hhegobfv.NewBFVPastaCipher(polyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod)
-	keygen := rlwe.NewKeyGenerator(bfv.Params.Parameters)
+	bfv := hhegobfv.NewBFVPastaCipher(polyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
 	rkBytes, _ := keygen.GenRelinearizationKeyNew(&bfv.SecretKey).
 		MarshalBinary()
 	bfv.WithRelinKeys(rkBytes, bfv.Params)
-	bfv2.WithRelinKeys(rkBytes, bfv.Params)
 
 	//bfv.printParameters()
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/fedejinich/hhego/util"
+	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"math"
 	"testing"
 )
@@ -59,8 +60,13 @@ func testTranscipher(t *testing.T, pastaSecretKey, plaintext, ciphertextExpected
 		t.Errorf("matrix size must be same size of the provided ciphertext ")
 	}
 
+	bfvParams := GenerateBfvParams(plainMod, bfvPolyDegree)
+	keygen := rlwe.NewKeyGenerator(bfvParams.Parameters)
+	sk, _ := keygen.GenKeyPairNew()
+	rk := keygen.GenRelinearizationKeyNew(sk)
+
 	// create bfv cipher
-	bfv := NewBFVPastaCipher(bfvPolyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod)
+	bfv := NewBFVPastaCipher(bfvPolyDegree, secLevel, messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
 
 	// homomorphically encrypt secret key
 	pastaSKCiphertext := bfv.EncryptPastaSecretKey(pastaSecretKey)

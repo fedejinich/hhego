@@ -27,7 +27,7 @@ func NewBFVUtil(bfvParams bfv.Parameters, encoder bfv.Encoder, evaluator bfv.Eva
 	return BFVUtil{bfvParams, encoder, evaluator}
 }
 
-func generateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
+func GenerateBfvParams(modulus uint64, degree uint64) bfv.Parameters {
 	var bfvParams bfv.ParametersLiteral
 	if degree == uint64(math.Pow(2, 14)) {
 		fmt.Println("polynomial modDegree (LogN) = 2^14 (16384)")
@@ -369,8 +369,9 @@ func EvaluationKeysBfvPasta(messageLength uint64, pastaSeclevel uint64, modDegre
 	return *genEVK(gkIndices, bfvParams.Parameters, keygen, &secretKey)
 }
 
-// EvaluationKeysBfvPasta creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
-func EvaluationKeysBfvPasta2(messageLength uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool, bsGsN2 uint64, bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, rk *rlwe.RelinearizationKey) (rlwe.EvaluationKeySet, []uint64) {
+// EvaluationKeysBfvPasta2 creates galois keys (for rotations and relinearization) to transcipher from pasta to bfv
+func EvaluationKeysBfvPasta2(messageLength uint64, pastaSeclevel uint64, modDegree uint64, useBsGs bool, bsGsN2 uint64,
+	bsGsN1 uint64, secretKey rlwe.SecretKey, bfvParams bfv.Parameters, rk *rlwe.RelinearizationKey) rlwe.EvaluationKeySet {
 
 	rem := reminder(messageLength, pastaSeclevel)
 
@@ -398,8 +399,9 @@ func EvaluationKeysBfvPasta2(messageLength uint64, pastaSeclevel uint64, modDegr
 	}
 
 	// finally we create the right evaluation set (rotation & reliniarization keys)
-	evk, galEls := GenEVK2(gkIndices, bfvParams.Parameters, &secretKey, rk)
-	return *evk, galEls
+	evk, _ := GenEVK2(gkIndices, bfvParams.Parameters, &secretKey, rk)
+
+	return *evk
 }
 
 func GenEVK2(gkIndices []int, params rlwe.Parameters, secretKey *rlwe.SecretKey, rk *rlwe.RelinearizationKey) (*rlwe.EvaluationKeySet, []uint64) {

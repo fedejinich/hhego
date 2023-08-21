@@ -17,17 +17,10 @@ type BFV struct {
 	SecretKey rlwe.SecretKey // todo(fedejinich) this should be private
 	Util      BFVUtil
 	Evk       rlwe.EvaluationKeySet
-	GalEls    []uint64
 }
 
-//type PastaParams struct {
-//	PastaRounds         int
-//	PastaCiphertextSize int
-//	Modulus             int
-//}
-
 // newBFV default constructor
-func newBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder, evk rlwe.EvaluationKeySet, galEls []uint64) BFV {
+func newBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.Evaluator, encoder bfv.Encoder, evk rlwe.EvaluationKeySet) BFV {
 	return BFV{
 		bfv.NewEncryptor(bfvParams, secretKey),
 		bfv.NewDecryptor(bfvParams, secretKey),
@@ -37,49 +30,47 @@ func newBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey, evaluator bfv.E
 		*secretKey,
 		NewBFVUtil(bfvParams, encoder, evaluator),
 		evk,
-		galEls,
 	}
 }
 
 func NewBFV(modulus, polyDegree uint64) BFV {
-	bfvParams := generateBfvParams(modulus, polyDegree)
+	bfvParams := GenerateBfvParams(modulus, polyDegree)
 	keygen := bfv.NewKeyGenerator(bfvParams)
 	s, _ := keygen.GenKeyPairNew()
 	evk := BasicEvaluationKeys(bfvParams.Parameters, *keygen, s)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 
-	cipher := newBFV(bfvParams, s, bfvEvaluator, bfvEncoder, evk, []uint64{}) // todo(fedejinich) this is ugly
+	cipher := newBFV(bfvParams, s, bfvEvaluator, bfvEncoder, evk) // todo(fedejinich) this is ugly
 
 	return cipher
 }
 
-func NewBFVPastaCipher(modDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64, useBsGs bool, plainMod uint64) BFV {
-	bfvParams := generateBfvParams(plainMod, modDegree)
-	keygen := bfv.NewKeyGenerator(bfvParams)
-	secretKey, _ := keygen.GenKeyPairNew()
+func NewBFVPastaCipher(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64, useBsGs bool, modulus uint64,
+	sk *rlwe.SecretKey, rk *rlwe.RelinearizationKey) BFV {
+	bfvParams := GenerateBfvParams(modulus, polyDegree)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	evk := EvaluationKeysBfvPasta(messageLength, pastaSeclevel, modDegree, useBsGs,
-		bsGsN2, bsGsN1, *secretKey, bfvParams, *keygen)
+	evk := EvaluationKeysBfvPasta2(messageLength, pastaSeclevel, polyDegree, useBsGs,
+		bsGsN2, bsGsN1, *sk, bfvParams, rk)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 
-	bfvCipher := newBFV(bfvParams, secretKey, bfvEvaluator, bfvEncoder, evk, []uint64{}) // todo(fedejinich) this is ugly
+	bfvCipher := newBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk)
 
 	return bfvCipher
 }
 
-func NewCipherPastaWithSKAndRK(modDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64, useBsGs bool,
-	plainMod uint64, sk *rlwe.SecretKey, rk *rlwe.RelinearizationKey) BFV {
+func NewCipherPastaWithSKAndRK(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64, useBsGs bool,
+	modulus uint64, sk *rlwe.SecretKey, rk *rlwe.RelinearizationKey) BFV {
 
-	bfvParams := generateBfvParams(plainMod, modDegree)
+	bfvParams := GenerateBfvParams(modulus, polyDegree)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	evk, galEls := EvaluationKeysBfvPasta2(messageLength, pastaSeclevel, modDegree, useBsGs, bsGsN2, bsGsN1, *sk, bfvParams, rk)
+	evk := EvaluationKeysBfvPasta2(messageLength, pastaSeclevel, polyDegree, useBsGs, bsGsN2, bsGsN1, *sk, bfvParams, rk)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 
-	bfvCipher := newBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk, galEls)
+	bfvCipher := newBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk)
 
-	fmt.Println(fmt.Sprintf("NewCipherPasta(modDegree%d,pastaSecLevel%d,messageLen%d,plainMod%d\n",
-		modDegree, pastaSeclevel, messageLength, plainMod))
+	fmt.Println(fmt.Sprintf("NewCipherPasta(polyDegree%d,pastaSecLevel%d,messageLen%d,modulus%d\n",
+		polyDegree, pastaSeclevel, messageLength, modulus))
 
 	return bfvCipher
 }

@@ -20,19 +20,13 @@ There are some basic example schemes that can be found and run as regular go tes
 go test hhe_scheme_test.go
 ```
 
-## Benchmarks
-
-Benchmarks can be found at `~/benchmark` folder. 
-
-WIP
-
 ## Build for Java as Shared Library
 
 This project can be build as a shared library to be used from a Java application. To build as shared library go to `PROJECT_ROOT/jni` and run
 
 ```bash
 make macos
-``
+```
 
 This will set the right flags and build it for a `amd64` architecture. Then the output will be on the same `jni` folder.
 

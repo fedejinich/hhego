@@ -472,7 +472,7 @@ func testCases() []BFVTestCase {
 	return tcs
 }
 
-func NewBFV(modulus, polyDegree uint64) (rlwe.Encryptor, rlwe.Decryptor, bfv2.Evaluator, bfv2.Encoder, BFVParams) {
+func NewBFV(modulus, polyDegree uint64) (rlwe.Encryptor, rlwe.Decryptor, bfv2.Evaluator, bfv2.Encoder, Params) {
 	bfvParams := GenerateBfvParams(modulus, polyDegree)
 	keygen := bfv2.NewKeyGenerator(bfvParams)
 	s, _ := keygen.GenKeyPairNew()
@@ -480,7 +480,7 @@ func NewBFV(modulus, polyDegree uint64) (rlwe.Encryptor, rlwe.Decryptor, bfv2.Ev
 	bfvEvaluator := bfv2.NewEvaluator(bfvParams, &evk)
 	bfvEncoder := bfv2.NewEncoder(bfvParams)
 
-	encryptor, decryptor, evaluator, _, cipher := newBFV(bfvParams, s, bfvEvaluator, bfvEncoder, evk) // todo(fedejinich) this is ugly
+	encryptor, decryptor, evaluator, _, cipher := NewBFV(bfvParams, s, bfvEvaluator, bfvEncoder, evk) // todo(fedejinich) this is ugly
 
 	return encryptor, decryptor, evaluator, bfvEncoder, cipher
 }

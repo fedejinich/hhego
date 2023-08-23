@@ -68,7 +68,7 @@ func Java_org_rsksmart_BFV_mul(env *C.JNIEnv, obj C.jobject, jOp0 C.jbyteArray, 
 
 //export Java_org_rsksmart_BFV_decrypt
 func Java_org_rsksmart_BFV_decrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteArray, jDataLen C.jint,
-	dataSize C.jint, jSK C.jbyteArray, jSKLen C.jint) C.jbyteArray {
+	jSK C.jbyteArray, jSKLen C.jint) C.jbyteArray {
 
 	// deserialize keys
 	skBytes := jBytesToBytes(env, jSK, jSKLen)
@@ -80,10 +80,11 @@ func Java_org_rsksmart_BFV_decrypt(env *C.JNIEnv, obj C.jobject, jData C.jbyteAr
 	data := bfv.NewCiphertext(BfvParams, 1, BfvParams.MaxLevel())
 	data.UnmarshalBinary(dataBytes)
 
-	// todo(fedejinich) replace this with generic encryptor decryptor
-	_, decryptor, _, encoder, _ := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel, 0,
-		20, 10, true, BfvParams.T(), sk, nil)
-	decrypted := bfv2.DecryptPacked(data, uint64(dataSize), decryptor, encoder)
+	decryptor := bfv.NewDecryptor(BfvParams, sk)
+	encoder := bfv.NewEncoder(BfvParams)
+
+	decryptedPt := decryptor.DecryptNew(data)
+	decrypted := encoder.DecodeUintNew(decryptedPt)
 
 	// output
 	d := util.Uint64ArrayToBytes(decrypted)

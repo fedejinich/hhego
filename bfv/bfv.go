@@ -9,22 +9,22 @@ import (
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 )
 
-type BFVParams struct {
+type Params struct {
 	Params    bfv.Parameters
 	secretKey rlwe.SecretKey
 	evk       rlwe.EvaluationKeySet
 }
 
-// newBFV default constructor
-func newBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey,
+// NewBFV default constructor
+func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey,
 	evaluator bfv.Evaluator, encoder bfv.Encoder,
 	evk rlwe.EvaluationKeySet) (rlwe.Encryptor, rlwe.Decryptor, bfv.Evaluator,
-	bfv.Encoder, BFVParams) {
+	bfv.Encoder, Params) {
 	return bfv.NewEncryptor(bfvParams, secretKey),
 		bfv.NewDecryptor(bfvParams, secretKey),
 		evaluator,
 		encoder,
-		BFVParams{
+		Params{
 			bfvParams,
 			*secretKey,
 			evk,
@@ -34,15 +34,15 @@ func newBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey,
 func NewBFVPasta(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64,
 	useBsGs bool, modulus uint64, sk *rlwe.SecretKey,
 	rk *rlwe.RelinearizationKey) (rlwe.Encryptor, rlwe.Decryptor, bfv.Evaluator,
-	bfv.Encoder, BFVParams) {
-	
+	bfv.Encoder, Params) {
+
 	bfvParams := GenerateBfvParams(modulus, polyDegree)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
 	evk := evaluationKeysBfvPasta(messageLength, pastaSeclevel, polyDegree, useBsGs,
 		bsGsN2, bsGsN1, *sk, bfvParams, rk)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 
-	e, d, ev, en, bfvCipher := newBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk)
+	e, d, ev, en, bfvCipher := NewBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk)
 
 	return e, d, ev, en, bfvCipher
 }
@@ -56,7 +56,7 @@ func NewBFVPasta(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64
 func Transcipher(encryptedMessage []uint64, pastaSecretKey *rlwe.Ciphertext,
 	pastaParams pasta.Params, pastaSeclevel uint64, encoder bfv.Encoder,
 	evaluator bfv.Evaluator, bfvParams bfv.Parameters) rlwe.Ciphertext {
-	
+
 	useBsGs := true // enables babystep gigantstep matrix multiplication
 
 	pastaUtil := pasta.NewUtil(nil, bfvParams.T(), int(pastaParams.Rounds)) // todo(fedejinich) plainMod == b.bfvParams.T() == pastaParams.Modulus ?
@@ -188,11 +188,11 @@ func flattenPastaBlocks(pastaBlocks []rlwe.Ciphertext, pastaSeclevel,
 	return ciphertext
 }
 
-func (b *BFVParams) slots() uint64 {
+func (b *Params) slots() uint64 {
 	return uint64(b.Params.N())
 }
 
-func (b *BFVParams) halfslots() uint64 {
+func (b *Params) halfslots() uint64 {
 	return b.slots() / 2
 }
 
@@ -233,7 +233,7 @@ func evaluationKeysBfvPasta(messageLength uint64, pastaSeclevel uint64, modDegre
 
 func buildEvks(gkIndices []int, params rlwe.Parameters, secretKey *rlwe.SecretKey,
 	rk *rlwe.RelinearizationKey) *rlwe.EvaluationKeySet {
-	
+
 	galEls := make([]uint64, len(gkIndices))
 	for i, rot := range gkIndices {
 		// SEAL uses gkIndex = 0 to represent a column rotation (row in lattigo)

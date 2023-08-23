@@ -5,12 +5,50 @@ import (
 	hhegobfv "github.com/fedejinich/hhego/bfv"
 	"github.com/fedejinich/hhego/pasta"
 	"github.com/fedejinich/hhego/util"
+	"github.com/tuneinsight/lattigo/v4/bfv"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 	"testing"
 )
 
 var PastaParams = pasta.Params{SecretKeySize: pasta.SecretKeySize, PlaintextSize: pasta.PlaintextSize,
 	CiphertextSize: pasta.CiphertextSize, Rounds: 3}
+
+// TestFoo this is a workspace
+func TestFoo(t *testing.T) {
+	params, _ := bfv.NewParametersFromLiteral(bfv.PN15QP827pq)
+	keygen := rlwe.NewKeyGenerator(params.Parameters)
+	sk, _ := keygen.GenKeyPairNew()
+	encryptor := bfv.NewEncryptor(params, sk)
+	decryptor := bfv.NewDecryptor(params, sk)
+	encoder := bfv.NewEncoder(params)
+	evk := rlwe.NewEvaluationKeySet()
+	evk.RelinearizationKey = keygen.GenRelinearizationKeyNew(sk)
+	evaluator := bfv.NewEvaluator(params, evk)
+
+	op1Pt := bfv.NewPlaintext(params, params.MaxLevel())
+	op2Pt := bfv.NewPlaintext(params, params.MaxLevel())
+
+	op1 := []uint64{1, 2}
+	op2 := []uint64{3, 4}
+
+	encoder.Encode(op1, op1Pt)
+	encoder.Encode(op2, op2Pt)
+
+	op1Ct := encryptor.EncryptNew(op1Pt)
+	op2Ct := encryptor.EncryptNew(op2Pt)
+
+	//resCt := evaluator.AddNew(op1Ct, op2Ct)
+	resCt := evaluator.MulRelinNew(op1Ct, op2Ct)
+	resPt := decryptor.DecryptNew(resCt)
+
+	res := encoder.DecodeUintNew(resPt)
+
+	if !util.EqualSlices(res[:2], []uint64{3, 8}) {
+		t.Errorf("this is unexpected")
+	}
+
+	fmt.Println(res)
+}
 
 //func TestHhe1(t *testing.T) {
 //	pastaSecretKey := []uint64{

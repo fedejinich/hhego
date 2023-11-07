@@ -23,7 +23,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil, _ := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			encryptor, decryptor, evaluator, encoder, bfv := NewBFV(tc.modulus, tc.bfvDegree)
+			encryptor, decryptor, evaluator, encoder, bfv, _ := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -64,7 +64,7 @@ func TestUtil(t *testing.T) {
 			pastaUtil, _ := newPastaUtil(tc.modulus)
 			pastaUtil.InitShake(uint64(123456789), 0)
 
-			encryptor, decryptor, evaluator, encoder, bfv := NewBFV(tc.modulus, tc.bfvDegree)
+			encryptor, decryptor, evaluator, encoder, bfv, _ := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -103,7 +103,7 @@ func TestUtil(t *testing.T) {
 		})
 		t.Run("TestUtil_AddRc", func(t *testing.T) {
 			pastaUtil, _ := newPastaUtil(tc.modulus)
-			encryptor, decryptor, evaluator, encoder, bfv := NewBFV(tc.modulus, tc.bfvDegree)
+			encryptor, decryptor, evaluator, encoder, bfv, _ := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -142,7 +142,7 @@ func TestUtil(t *testing.T) {
 
 		t.Run("TestUtil_Mix", func(t *testing.T) {
 			pastaUtil, _ := newPastaUtil(tc.modulus)
-			encryptor, decryptor, evaluator, encoder, bfv := NewBFV(tc.modulus, tc.bfvDegree)
+			encryptor, decryptor, evaluator, encoder, bfv, _ := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -173,7 +173,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxCube", func(t *testing.T) {
 			pastaUtil, _ := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			encryptor, decryptor, evaluator, encoder, bfv := NewBFV(tc.modulus, tc.bfvDegree)
+			encryptor, decryptor, evaluator, encoder, bfv, _ := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -210,7 +210,7 @@ func TestUtil(t *testing.T) {
 		t.Run("TestUtil_SboxFeistel", func(t *testing.T) {
 			pastaUtil, _ := newPastaUtil(tc.modulus)
 			pastaUtil2, _ := newPastaUtil(tc.modulus)
-			encryptor, decryptor, evaluator, encoder, bfv := NewBFV(tc.modulus, tc.bfvDegree)
+			encryptor, decryptor, evaluator, encoder, bfv, _ := NewBFV(tc.modulus, tc.bfvDegree)
 
 			s1 := testVec()
 			s2 := testVec2()
@@ -245,7 +245,7 @@ func TestUtil(t *testing.T) {
 		})
 
 		t.Run("TestUtil_BasicBFVDecrypt", func(t *testing.T) {
-			encryptor, decryptor, _, encoder, bfv := NewBFV(tc.modulus, tc.bfvDegree)
+			encryptor, decryptor, _, encoder, bfv, _ := NewBFV(tc.modulus, tc.bfvDegree)
 
 			vec := testVec()
 

@@ -15,6 +15,7 @@ package main
 // }
 import "C"
 import (
+	"fmt"
 	bfv2 "github.com/fedejinich/hhego/bfv"
 	"github.com/fedejinich/hhego/pasta"
 	"unsafe"
@@ -140,8 +141,8 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 	messageByteArray := jBytesToBytes(env, jEncryptedMessageBytes, jEncryptedMessageLen)
 	message := util.BytesToUint64Array(messageByteArray)
 
-	_, _, evaluator, encoder, _ := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel, uint64(len(message)),
-		20, 10, true, BfvParams.T(), bfvSK, rk)
+	_, _, evaluator, encoder, _, _ := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel,
+		uint64(len(message)), 20, 10, BfvParams.T(), bfvSK, rk)
 
 	// transcipher
 	pastaParams := pasta.Params{
@@ -150,6 +151,49 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 		CiphertextSize: pasta.CiphertextSize,
 		Rounds:         pasta.Rounds,
 	}
+	res := bfv2.Transcipher(message, pastaSK, pastaParams, pasta.DefaultSecLevel, encoder, evaluator, BfvParams)
+
+	// output
+	resBytes, _ := res.MarshalBinary()
+	var cOutput *C.char = C.CString(string(resBytes)) // todo(fedejinich) will string always work as expected?
+	defer C.free(unsafe.Pointer(cOutput))
+	r := C.fromCByteArray(env, cOutput, C.int(len(resBytes)))
+
+	return r
+}
+
+//export Java_org_rsksmart_BFV_transcipher2
+func Java_org_rsksmart_BFV_transcipher2(env *C.JNIEnv, obj C.jobject, jEncryptedMessageBytes C.jbyteArray,
+	jEncryptedMessageLen C.jint, jPastaSK C.jbyteArray, jPastaSKLen C.jint, jEvks C.jbyteArray,
+	jEvksLen C.jint) C.jbyteArray {
+
+	// deserialize keys
+	pastaSkBytes := jBytesToBytes(env, jPastaSK, jPastaSKLen)
+	pastaSK := util.BytesToCiphertext(pastaSkBytes, BfvParams)
+
+	//bfvSKBytes := jBytesToBytes(env, jBfvSK, jBfvSKLen)
+	//bfvSK := util.BytesToSecretKey(bfvSKBytes, BfvParams.Parameters)
+	//
+	evksBytes := jBytesToBytes(env, jEvks, jEvksLen)
+	evks := util.BytesToEvks(evksBytes)
+
+	// deserialize message
+	messageByteArray := jBytesToBytes(env, jEncryptedMessageBytes, jEncryptedMessageLen)
+	message := util.BytesToUint64Array(messageByteArray)
+
+	_, _, evaluator, encoder, _, _ := bfv2.NewBFVPastaEvks(uint64(BfvParams.N()), BfvParams.T(), *evks, nil)
+
+	// transcipher
+	pastaParams := pasta.Params{
+		SecretKeySize:  pasta.SecretKeySize,
+		PlaintextSize:  pasta.PlaintextSize,
+		CiphertextSize: pasta.CiphertextSize,
+		Rounds:         pasta.Rounds,
+	}
+
+	fmt.Println("transciphering message")
+	fmt.Println(message)
+
 	res := bfv2.Transcipher(message, pastaSK, pastaParams, pasta.DefaultSecLevel, encoder, evaluator, BfvParams)
 
 	// output

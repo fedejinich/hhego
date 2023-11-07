@@ -10,41 +10,54 @@ import (
 )
 
 type Params struct {
-	Params    bfv.Parameters
-	secretKey rlwe.SecretKey
-	evk       rlwe.EvaluationKeySet
+	Params bfv.Parameters
+	evk    rlwe.EvaluationKeySet
 }
 
 // NewBFV default constructor
-func NewBFV(bfvParams bfv.Parameters, secretKey *rlwe.SecretKey,
-	evaluator bfv.Evaluator, encoder bfv.Encoder,
-	evk rlwe.EvaluationKeySet) (rlwe.Encryptor, rlwe.Decryptor, bfv.Evaluator,
-	bfv.Encoder, Params) {
-	return bfv.NewEncryptor(bfvParams, secretKey),
-		bfv.NewDecryptor(bfvParams, secretKey),
-		evaluator,
-		encoder,
-		Params{
-			bfvParams,
-			*secretKey,
-			evk,
-		}
+func NewBFV(bfvParams bfv.Parameters, encryptor rlwe.Encryptor, decryptor rlwe.Decryptor, evaluator bfv.Evaluator,
+	encoder bfv.Encoder, evk rlwe.EvaluationKeySet) (rlwe.Encryptor, rlwe.Decryptor,
+	bfv.Evaluator, bfv.Encoder, Params, rlwe.EvaluationKeySet) {
+	//return bfv.NewEncryptor(bfvParams, secretKey),
+	//	bfv.NewDecryptor(bfvParams, secretKey),
+	return encryptor, decryptor, evaluator, encoder, Params{
+		bfvParams,
+		evk,
+	}, evk
 }
 
-func NewBFVPasta(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2 uint64,
-	useBsGs bool, modulus uint64, sk *rlwe.SecretKey,
-	rk *rlwe.RelinearizationKey) (rlwe.Encryptor, rlwe.Decryptor, bfv.Evaluator,
-	bfv.Encoder, Params) {
-
+func NewBFVPasta(polyDegree, pastaSeclevel, messageLength, bsGsN1, bsGsN2, modulus uint64, sk *rlwe.SecretKey,
+	rk *rlwe.RelinearizationKey) (rlwe.Encryptor, rlwe.Decryptor, bfv.Evaluator, bfv.Encoder, Params,
+	rlwe.EvaluationKeySet) {
 	bfvParams := GenerateBfvParams(modulus, polyDegree)
 	bfvEncoder := bfv.NewEncoder(bfvParams)
-	evk := evaluationKeysBfvPasta(messageLength, pastaSeclevel, polyDegree, useBsGs,
+	evk := evaluationKeysBfvPasta(messageLength, pastaSeclevel, polyDegree, true,
 		bsGsN2, bsGsN1, *sk, bfvParams, rk)
 	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evk)
 
-	e, d, ev, en, bfvCipher := NewBFV(bfvParams, sk, bfvEvaluator, bfvEncoder, evk)
+	kg := rlwe.NewKeyGenerator(bfvParams.Parameters)
+	pk := kg.GenPublicKeyNew(sk)
 
-	return e, d, ev, en, bfvCipher
+	encryptor := bfv.NewEncryptor(bfvParams, pk)
+	decryptor := bfv.NewDecryptor(bfvParams, sk)
+
+	e, d, ev, en, params, evks := NewBFV(bfvParams, encryptor, decryptor, bfvEvaluator, bfvEncoder, evk)
+
+	return e, d, ev, en, params, evks
+}
+
+func NewBFVPastaEvks(polyDegree, modulus uint64, evks rlwe.EvaluationKeySet, pk *rlwe.PublicKey) (rlwe.Encryptor,
+	rlwe.Decryptor, bfv.Evaluator, bfv.Encoder, Params, rlwe.EvaluationKeySet) {
+
+	bfvParams := GenerateBfvParams(modulus, polyDegree)
+	bfvEncoder := bfv.NewEncoder(bfvParams)
+	bfvEvaluator := bfv.NewEvaluator(bfvParams, &evks)
+
+	encryptor := bfv.NewEncryptor(bfvParams, pk)
+
+	e, d, ev, en, params, evks2 := NewBFV(bfvParams, encryptor, nil, bfvEvaluator, bfvEncoder, evks)
+
+	return e, d, ev, en, params, evks2 // todo(fedejinich) evks2 :(
 }
 
 // Transcipher translates pasta encrypted messages into bfv encrypted messages by

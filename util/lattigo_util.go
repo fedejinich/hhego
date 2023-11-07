@@ -41,6 +41,13 @@ func BytesToCiphertext(bytes []byte, bfvParams bfv.Parameters) *rlwe.Ciphertext 
 	return ct
 }
 
+func BytesToEvks(bytes []byte) *rlwe.EvaluationKeySet {
+	evks := rlwe.NewEvaluationKeySet()
+	evks.UnmarshalBinary(bytes)
+
+	return evks
+}
+
 func BytesToUint64Array(data []byte) []uint64 {
 	var uint64s []uint64
 

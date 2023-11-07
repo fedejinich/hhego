@@ -68,8 +68,7 @@ func testTranscipher(t *testing.T, pastaSecretKey, plaintext, ciphertextExpected
 	rk := keygen.GenRelinearizationKeyNew(sk)
 
 	// create bfv cipher
-	encryptor, decryptor, evaluator, encoder, _ := NewBFVPasta(bfvPolyDegree, secLevel,
-		messageLength, bsgN1, bsgN2, useBsGs, plainMod, sk, rk)
+	encryptor, decryptor, evaluator, encoder, _, _ := NewBFVPasta(bfvPolyDegree, secLevel, messageLength, bsgN1, bsgN2, plainMod, sk, rk)
 
 	// homomorphically encrypt secret key
 	pastaSKCiphertext := EncryptPastaSecretKey(pastaSecretKey, encoder, encryptor, bfvParams)

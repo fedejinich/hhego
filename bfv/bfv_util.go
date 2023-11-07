@@ -95,7 +95,23 @@ func GenEvks(params rlwe.Parameters, galEls []uint64, secretKey *rlwe.SecretKey,
 	// set relineraization key (for mul)
 	evk.RelinearizationKey = rk
 
+	//evkBinary, _ := evk.MarshalBinary()
+	//sizeInBytes := int64(evk.BinarySize())
+	//sizeInMB := bytesToMB(sizeInBytes)
+	//fmt.Printf("%d bytes is %.2f MB\n", sizeInBytes, sizeInMB)
+	//sizeInBytesGK := int64(evk.GaloisKeys.BinarySize())
+	//sizeInMBGK := bytesToMB(sizeInBytesGK)
+	//fmt.Printf("%d bytes is %.2f MB\n", sizeInBytesGK, sizeInMBGK)
+	//
+	//sizeInBytesSk := int64(secretKey.BinarySize())
+	//sizeInMBSk := bytesToMB(sizeInBytesSk)
+	//fmt.Printf("%d bytes is %.2f MB\n", sizeInBytesSk, sizeInMBSk)
+
 	return evk
+}
+
+func bytesToMB(bytes int64) float64 {
+	return float64(bytes) / 1048576.0 // 1048576 = 1024 * 1024
 }
 
 func addGkIndices(gkIndices []int, degree uint64, useBsGs bool) []int {

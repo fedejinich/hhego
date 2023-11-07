@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 
 	bfv2 "github.com/fedejinich/hhego/bfv"
@@ -81,10 +82,15 @@ func main() {
 
 	// encrypt ops with pasta
 	vote1, vote1Bfv, vote1Pasta, _:= generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote1 %d + vote1Pasta %d\n", vote1, vote1Pasta)
 	vote2, vote2Bfv, vote2Pasta, _:= generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote2 %d + vote2Pasta %d\n", vote2, vote2Pasta)
 	vote3, vote3Bfv, vote3Pasta, _:= generateVote([]uint64{0, 0, 1, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote3 %d + vote3Pasta %d\n", vote3, vote3Pasta)
 	vote4, vote4Bfv, vote4Pasta, _:= generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote4 %d + vote4Pasta %d\n", vote4, vote4Pasta)
 	vote5, vote5Bfv, vote5Pasta, _:= generateVote([]uint64{0, 0, 0, 1}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote5 %d + vote5Pasta %d\n", vote5, vote5Pasta)
 
 	votesBfv := [][]byte{vote1Bfv, vote2Bfv, vote3Bfv, vote4Bfv, vote5Bfv}
 	votesPasta := [][]uint64{vote1Pasta, vote2Pasta, vote3Pasta, vote4Pasta, vote5Pasta}

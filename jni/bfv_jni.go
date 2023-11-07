@@ -139,8 +139,9 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 
 	// deserialize message
 	messageByteArray := jBytesToBytes(env, jEncryptedMessageBytes, jEncryptedMessageLen)
-	message := util.BytesToUint64Array(messageByteArray)
 
+	message := util.BytesToUint64Array(messageByteArray)
+	
 	_, _, evaluator, encoder, _, _ := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel,
 		uint64(len(message)), 20, 10, BfvParams.T(), bfvSK, rk)
 

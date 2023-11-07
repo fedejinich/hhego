@@ -54,7 +54,8 @@ func BytesToUint64Array(data []byte) []uint64 {
 	buffer := bytes.NewBuffer(data)
 	for buffer.Len() > 0 {
 		var value uint64
-		if err := binary.Read(buffer, binary.LittleEndian, &value); err != nil {
+		// if err := binary.Read(buffer, binary.LittleEndian, &value); err != nil {
+		if err := binary.Read(buffer, binary.BigEndian, &value); err != nil {
 			panic("cannot convert []byte to []uint64 ") // todo(fedejinich) panic?
 		}
 		uint64s = append(uint64s, value)

@@ -141,7 +141,7 @@ func Java_org_rsksmart_BFV_transcipher(env *C.JNIEnv, obj C.jobject, jEncryptedM
 	messageByteArray := jBytesToBytes(env, jEncryptedMessageBytes, jEncryptedMessageLen)
 
 	message := util.BytesToUint64Array(messageByteArray)
-	
+
 	_, _, evaluator, encoder, _, _ := bfv2.NewBFVPasta(uint64(BfvParams.N()), pasta.DefaultSecLevel,
 		uint64(len(message)), 20, 10, BfvParams.T(), bfvSK, rk)
 
@@ -207,17 +207,26 @@ func Java_org_rsksmart_BFV_transcipher2(env *C.JNIEnv, obj C.jobject, jEncrypted
 }
 
 //export Java_org_rsksmart_BFV_noiseBudget
-func Java_org_rsksmart_BFV_noiseBudget(env *C.JNIEnv, obj C.jobject,
-	jCt C.jbyteArray, jCtLen C.jint) C.jint {
+func Java_org_rsksmart_BFV_noiseBudget(env *C.JNIEnv, obj C.jobject, jCt0 C.jbyteArray, jCt0Len C.jint, jCt1 C.jbyteArray, jCt1Len C.jint, jSk C.jbyteArray, jSkLen C.jint) C.jint {
+	ct0Bytes := jBytesToBytes(env, jCt0, jCt0Len)
+	ct0 := util.BytesToCiphertext(ct0Bytes, BfvParams)
 
-	ctBytes := jBytesToBytes(env, jCt, jCtLen)
-	ct := util.BytesToCiphertext(ctBytes, BfvParams)
+	ct1Bytes := jBytesToBytes(env, jCt1, jCt1Len)
+	ct1 := util.BytesToCiphertext(ct1Bytes, BfvParams)
 
-	noiseBudget := util.NoiseBudget(ct)
+	// deserialize secret key
+	skBytes := jBytesToBytes(env, jSk, jSkLen)
+	sk := rlwe.NewSecretKey(BfvParams.Parameters)
+	sk.UnmarshalBinary(skBytes)
+
+	decryptor := bfv.NewDecryptor(BfvParams, sk)
+	evaluator := evaluatorWithRK(BfvParams, nil)
+
+	noiseBudget := util.NoiseBudget(evaluator, decryptor, ct0, ct1)
 	// noiseBudgetC := C.jint(noiseBudget)
 
 	// return noiseBudgetC
-	return noiseBudget
+	return C.jint(noiseBudget)
 }
 
 func executeOp(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,

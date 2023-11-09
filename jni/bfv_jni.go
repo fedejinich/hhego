@@ -206,6 +206,20 @@ func Java_org_rsksmart_BFV_transcipher2(env *C.JNIEnv, obj C.jobject, jEncrypted
 	return r
 }
 
+//export Java_org_rsksmart_BFV_noiseBudget
+func Java_org_rsksmart_BFV_noiseBudget(env *C.JNIEnv, obj C.jobject,
+	jCt C.jbyteArray, jCtLen C.jint) C.jint {
+
+	ctBytes := jBytesToBytes(env, jCt, jCtLen)
+	ct := util.BytesToCiphertext(ctBytes, BfvParams)
+
+	noiseBudget := util.NoiseBudget(ct)
+	// noiseBudgetC := C.jint(noiseBudget)
+
+	// return noiseBudgetC
+	return noiseBudget
+}
+
 func executeOp(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,
 	jOp1 C.jbyteArray, jOp1Len C.jint, evaluator bfv.Evaluator, opType int, bfvParams bfv.Parameters) C.jbyteArray {
 

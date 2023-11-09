@@ -52,3 +52,11 @@ func ExecuteOp(evaluator bfv.Evaluator, ct1 *rlwe.Ciphertext, ct2 *rlwe.Cipherte
 
 	return result
 }
+
+func NoiseBudget(evaluator bfv.Evaluator, decryptor rlwe.Decryptor, ct0 *rlwe.Ciphertext, ct1 *rlwe.Ciphertext) int {
+	vec := evaluator.SubNew(ct0, ct1)
+	res, _, _ := rlwe.Norm(vec, decryptor)
+	fmt.Printf("STD(noise): %d\n", int(res))
+
+	return int(res)
+}

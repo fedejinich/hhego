@@ -207,12 +207,9 @@ func Java_org_rsksmart_BFV_transcipher2(env *C.JNIEnv, obj C.jobject, jEncrypted
 }
 
 //export Java_org_rsksmart_BFV_noiseBudget
-func Java_org_rsksmart_BFV_noiseBudget(env *C.JNIEnv, obj C.jobject, jCt0 C.jbyteArray, jCt0Len C.jint, jCt1 C.jbyteArray, jCt1Len C.jint, jSk C.jbyteArray, jSkLen C.jint) C.jint {
+func Java_org_rsksmart_BFV_noiseBudget(env *C.JNIEnv, obj C.jobject, jCt0 C.jbyteArray, jCt0Len C.jint, jSk C.jbyteArray, jSkLen C.jint) C.jint {
 	ct0Bytes := jBytesToBytes(env, jCt0, jCt0Len)
 	ct0 := util.BytesToCiphertext(ct0Bytes, BfvParams)
-
-	ct1Bytes := jBytesToBytes(env, jCt1, jCt1Len)
-	ct1 := util.BytesToCiphertext(ct1Bytes, BfvParams)
 
 	// deserialize secret key
 	skBytes := jBytesToBytes(env, jSk, jSkLen)
@@ -220,13 +217,35 @@ func Java_org_rsksmart_BFV_noiseBudget(env *C.JNIEnv, obj C.jobject, jCt0 C.jbyt
 	sk.UnmarshalBinary(skBytes)
 
 	decryptor := bfv.NewDecryptor(BfvParams, sk)
-	evaluator := evaluatorWithRK(BfvParams, nil)
+	evaluator := evaluatorWithRK(BfvParams, rlwe.NewRelinearizationKey(BfvParams.Parameters))
+	encoder := bfv.NewEncoder(BfvParams)
 
-	noiseBudget := util.NoiseBudget(evaluator, decryptor, ct0, ct1)
+	pt := decryptor.DecryptNew(ct0)
+	values := encoder.DecodeUintNew(pt)
+	// noiseBudget := util.NoiseBudget(evaluator, decryptor, ct0, pt)
+	noiseBudget := PrintNoise(evaluator, decryptor, encoder, ct0, values)
 	// noiseBudgetC := C.jint(noiseBudget)
 
 	// return noiseBudgetC
 	return C.jint(noiseBudget)
+}
+
+// PrintNoise prints the standard deviation of the noise in the given ciphertext.
+func PrintNoise(evaluator bfv.Evaluator, decryptor rlwe.Decryptor, encoder bfv.Encoder, ct *rlwe.Ciphertext, values []uint64) int {
+	// Encode the coefficients back to a plaintext
+	pt := bfv.NewPlaintext(BfvParams, ct.Level())
+	encoder.Encode(values, pt)
+
+	// Subtract the encoded plaintext from the original ciphertext
+	vec := evaluator.SubNew(ct, pt)
+
+	// Calculate the norm of the resulting ciphertext, which gives the noise
+	res, _, _ := rlwe.Norm(vec, decryptor)
+
+	// Log the standard deviation of the noise
+	fmt.Printf("STD(noise)res: %d\n", int(res))
+
+	return int(res)
 }
 
 func executeOp(env *C.JNIEnv, jOp0 C.jbyteArray, jOp0Len C.jint,

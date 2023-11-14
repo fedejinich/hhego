@@ -53,30 +53,35 @@ func ExecuteOp(evaluator bfv.Evaluator, ct1 *rlwe.Ciphertext, ct2 *rlwe.Cipherte
 	return result
 }
 
-func NoiseBudget(evaluator bfv.Evaluator, decryptor rlwe.Decryptor, ct0 *rlwe.Ciphertext, ct1 *rlwe.Ciphertext) int {
-	vec := evaluator.SubNew(ct0, ct1)
+func NoiseBudget(evaluator bfv.Evaluator, decryptor rlwe.Decryptor, encoder bfv.Encoder, ct *rlwe.Ciphertext, pt *rlwe.Plaintext) int {
+	vec := evaluator.SubNew(ct, pt)
 	res, _, _ := rlwe.Norm(vec, decryptor)
-	resCt0, _, _ := rlwe.Norm(ct0, decryptor)
-	resCt1, _, _ := rlwe.Norm(ct1, decryptor)
+
+	// resCt0, _, _ := rlwe.Norm(ct0, decryptor)
+	// resCt1, _, _ := rlwe.Norm(ct1, decryptor)
 	fmt.Printf("STD(noise)res: %d\n", int(res))
-	fmt.Printf("STD(noise)ct0: %d\n", int(resCt0))
-	fmt.Printf("STD(noise)ct1: %d\n", int(resCt1))
-
-	ct3 := evaluator.MulRelinNew(ct0, ct0)
-	resCt3, _, _ := rlwe.Norm(ct3, decryptor)
-	fmt.Printf("STD(noise)ct3: %d\n", int(resCt3))
-
-	ct4 := evaluator.MulRelinNew(ct3, ct3)
-	resCt4, _, _ := rlwe.Norm(ct4, decryptor)
-	fmt.Printf("STD(noise)ct4: %d\n", int(resCt4))
-
-	ct5 := evaluator.MulRelinNew(ct4, ct4)
-	resCt5, _, _ := rlwe.Norm(ct5, decryptor)
-	fmt.Printf("STD(noise)ct5: %d\n", int(resCt5))
-
-	ct6 := evaluator.MulRelinNew(ct5, ct5)
-	resCt6, _, _ := rlwe.Norm(ct6, decryptor)
-	fmt.Printf("STD(noise)ct6: %d\n", int(resCt6))
+	// fmt.Printf("STD(noise)ct0: %d\n", int(resCt0))
+	// fmt.Printf("STD(noise)ct1: %d\n", int(resCt1))
+	//
+	// ct3 := evaluator.MulRelinNew(ct0, ct0)
+	// resCt3, _, _ := rlwe.Norm(ct3, decryptor)
+	// fmt.Printf("STD(noise)ct3: %d\n", int(resCt3))
+	//
+	// ct4 := evaluator.MulRelinNew(ct3, ct3)
+	// resCt4, _, _ := rlwe.Norm(ct4, decryptor)
+	// fmt.Printf("STD(noise)ct4: %d\n", int(resCt4))
+	//
+	// ct5 := evaluator.MulRelinNew(ct4, ct4)
+	// resCt5, _, _ := rlwe.Norm(ct5, decryptor)
+	// fmt.Printf("STD(noise)ct5: %d\n", int(resCt5))
+	//
+	// evaluator.MulRelin(ct5, ct5, ct5)
+	// resCt6, _, _ := rlwe.Norm(ct5, decryptor)
+	// fmt.Printf("STD(noise)ct6: %d\n", int(resCt6))
+	//
+	// evaluator.MulRelin(ct5, ct5, ct5)
+	// resCt7, _, _ := rlwe.Norm(ct5, decryptor)
+	// fmt.Printf("STD(noise)ct7: %d\n", int(resCt7))
 
 	return int(res)
 }

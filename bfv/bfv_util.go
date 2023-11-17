@@ -162,3 +162,18 @@ func BasicEvaluationKeys(parameters rlwe.Parameters, keygen rlwe.KeyGenerator, s
 
 	return *GenEvks(parameters, galEls, sk, keygen.GenRelinearizationKeyNew(sk))
 }
+
+func NoiseBudget(decryptor rlwe.Decryptor, encoder bfv.Encoder, evaluator bfv.Evaluator,
+	el *rlwe.Ciphertext) (float64) {
+	pt := decryptor.DecryptNew(el)
+	val := encoder.DecodeUintNew(pt)
+	encoder.Encode(val, pt)
+
+	ct := evaluator.SubNew(el, pt)
+
+	res, _, _ := rlwe.Norm(ct, decryptor)
+
+	fmt.Printf("STD(noise): %f\n", res)
+	
+	return res
+}

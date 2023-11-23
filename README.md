@@ -1,47 +1,68 @@
 # hhego
 
-hhego is a Go library specifically designed to implement a hybrid homomorphic encryption scheme. 
+`hhego` is a monorepo for all Go-based tools used as part of the HHE (Hybrid Homomorphic Encryption) Proof of Concept. 
 
-## Hybrid Homomorphic Scheme
+### Components
 
-This library merges the advantages of symmetric and homomorphic encryption methodologies, employing PASTA as the symmetric cipher and BFV as the homomorphic cipher. The outcome is a hybrid homomorphic encryption system that ensures secure computation on encrypted data while preserving the efficiency of symmetric encryption for large-scale processing tasks.
+- **bfv**: `lattigo` wrapper, designed to create hybrid homomorphic encryption schemes.
+- **pasta**: contains PASTA symmetric cipher.
+- **js**: A script for generating votes in the `fhBallot` project.
+- **jni**: Java bindings to integrate it with `rskj`.
+- **workspace**: a place for small tests. 
 
-## Dependencies
+The goal of `hhego` is to integrate these components with `rskj`, enabling support for hybrid homomorphic encryption on Rootstock.
 
-This library depends on the following packages:
+## Installation and Usage
 
-- [lattigo v4](https://github.com/tuneinsight/lattigo): A library for lattice-based multi-party homomorphic encryption in Go
+### JNI
 
-## Running the schemes
+The JNI component enables the use of `bfv` in Java applications, in this PoC we use it to integrate it with `rskj` and use it as a precompiled contract.
 
-There are some basic example schemes that can be found and run as regular go tests at `hhe_scheme_test.go`.
-
-```bash
-go test hhe_scheme_test.go
-```
-
-## Build for Java as Shared Library
-
-This project can be build as a shared library to be used from a Java application. To build as shared library go to `PROJECT_ROOT/jni` and run
+To build this library, use the following command:
 
 ```bash
 make macos
 ```
 
-This will set the right flags and build it for a `amd64` architecture. Then the output will be on the same `jni` folder.
+The output should be `libbfv_jni.dylib`, a dynamic library for mac.
 
-### Experimental script 
+##### Bash Script
 
-There are two experimental scripts:
-1. To compile and inject the new mac-library into the `hhejava` project
+There's also a bash script that builds and copies the output to `rskj`.
 
 ```bash
 ./build_jni_mac.sh
 ```
 
+### JS 
 
-2. To generate and replace test data into the `hhejava` project.
+The JS component includes a Go script designed to generate encrypted votes for the `fhBallot` project. To execute this script, run:
 
 ```bash
-./generate_test_cases.sh
+go run votes.go
+```
+
+This script produces a JSON output with the following structure:
+
+```json
+{
+	// Generated votes
+    "votes": [[1, 0, 0, 0], [0, 1, 0, 0]],
+    // Encrypted votes using PASTA
+    "votesPasta": [[30447, 62405, 62714, 38763], [30446, 62406, 62714, 38763]], 
+    // BFV-encrypted PASTA secret key
+    "pastaSK": [...], 
+	// Relinearization key (for converting PASTA votes to BFV votes)
+    "rk": [...], 
+	// BFV secret key (used for encrypting PASTA SK)
+    "bfvSK": [...] 
+}
+```
+
+##### Bash Script
+
+There's also a bash script that builds and copies the output to `rskj`.
+
+```bash
+./generate_votes.sh
 ```

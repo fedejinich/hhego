@@ -14,17 +14,15 @@ import (
 	"github.com/tuneinsight/lattigo/v4/rlwe"
 )
 
-// const VOTE_COUNT = 5
-const VOTE_COUNT = 100
+const VOTE_COUNT = 50 
+const HARDCODED_VOTES = false 
 
 type VotesJSON struct {
-	Votes [][]uint64 `json:"votes"`
-	// VotesBfv   [][]byte   `json:"votesBfv"`
+	Votes      [][]uint64 `json:"votes"`
 	VotesPasta [][]uint64 `json:"votesPasta"`
-	// VotesBfvString []string   `json:"votesBfvString"`
-	PastaSK []byte `json:"pastaSK"`
-	Rk      []byte `json:"rk"`
-	BfvSK   []byte `json:"bfvSK"`
+	PastaSK    []byte     `json:"pastaSK"`
+	Rk         []byte     `json:"rk"`
+	BfvSK      []byte     `json:"bfvSK"`
 }
 
 func main() {
@@ -66,7 +64,6 @@ func main() {
 
 	bfvSK, _ := rlwe.NewKeyGenerator(bfvParams.Parameters).
 		GenKeyPairNew()
-	//_, _ = bfvSK.MarshalBinary()
 
 	pastaParams := pasta.Params{
 		SecretKeySize:  pasta.SecretKeySize,
@@ -86,33 +83,21 @@ func main() {
 		pasta.DefaultSecLevel, voteLen, 20, 10, mod, bfvSK, rlk)
 
 	votes := make([][]uint64, VOTE_COUNT)
-	// votesBfv := make([][]byte, VOTE_COUNT)
 	votesPasta := make([][]uint64, VOTE_COUNT)
-	for i := 0; i < VOTE_COUNT; i++ {
-		vot := randomVote()
-		v, _, vPasta := generateVote(vot, encryptor, pastaCipher, bfvParams)
-		fmt.Printf("%d. v %d + vPasta %d\n", i, v, vPasta)
+	if HARDCODED_VOTES {
+		v, vp := hardcodedVotes(encryptor, pastaCipher, bfvParams)
+		votes = v
+		votesPasta = vp
+	} else {
+		for i := 0; i < VOTE_COUNT; i++ {
+			vot := randomVote()
+			v, _, vPasta := generateVote(vot, encryptor, pastaCipher, bfvParams)
+			fmt.Printf("%d. v %d + vPasta %d\n", i, v, vPasta)
 
-		votes[i] = v
-		// votesBfv = append(votesBfv, vBfv)
-		votesPasta[i] = vPasta
+			votes[i] = v
+			votesPasta[i] = vPasta
+		}
 	}
-
-	// encrypt ops with pasta
-	// vote1, vote1Bfv, vote1Pasta, _ := generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
-	// fmt.Printf("vote1 %d + vote1Pasta %d\n", vote1, vote1Pasta)
-	// vote2, vote2Bfv, vote2Pasta, _ := generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
-	// fmt.Printf("vote2 %d + vote2Pasta %d\n", vote2, vote2Pasta)
-	// vote3, vote3Bfv, vote3Pasta, _ := generateVote([]uint64{0, 0, 1, 0}, encryptor, pastaCipher, bfvParams)
-	// fmt.Printf("vote3 %d + vote3Pasta %d\n", vote3, vote3Pasta)
-	// vote4, vote4Bfv, vote4Pasta, _ := generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
-	// fmt.Printf("vote4 %d + vote4Pasta %d\n", vote4, vote4Pasta)
-	// vote5, vote5Bfv, vote5Pasta, _ := generateVote([]uint64{0, 0, 0, 1}, encryptor, pastaCipher, bfvParams)
-	// fmt.Printf("vote5 %d + vote5Pasta %d\n", vote5, vote5Pasta)
-
-	// votesBfv := [][]byte{vote1Bfv, vote2Bfv, vote3Bfv, vote4Bfv, vote5Bfv}
-	// votesPasta := [][]uint64{vote1Pasta, vote2Pasta, vote3Pasta, vote4Pasta, vote5Pasta}
-	// votes := [][]uint64{vote1, vote2, vote3, vote4, vote5}
 
 	// BFV encrypt PASTA secret key
 	pastaSKCt := bfv2.EncryptPastaSecretKey(pastaSK, encoder, encryptor, bfvParams)
@@ -123,9 +108,6 @@ func main() {
 
 	// bfvSK bytes
 	bfvSKBytes, _ := bfvSK.MarshalBinary()
-
-	// votesJson := VotesJSON{votes, votesBfv, votesPasta,
-	// 	pastaSKCtBytes, rlkBytes, bfvSKBytes}
 
 	votesJson := VotesJSON{votes, votesPasta, pastaSKCtBytes, rlkBytes, bfvSKBytes}
 
@@ -144,17 +126,6 @@ func toJSON(c interface{}) []byte {
 		panic("wrong json produced")
 	}
 	return jsonData
-}
-
-func generateVote(vote []uint64, bfvCipher rlwe.Encryptor, pastaCipher pasta.Pasta,
-	params bfv.Parameters) ([]uint64, []byte, []uint64) {
-
-	votePasta := pastaCipher.Encrypt(vote)
-	vote1Pt := rlwe.NewPlaintext(params.Parameters, params.MaxLevel())
-	voteBfv := bfvCipher.EncryptNew(vote1Pt)
-	voteBfvBytes, _ := voteBfv.MarshalBinary()
-
-	return vote, voteBfvBytes, votePasta
 }
 
 func randomVote() []uint64 {
@@ -184,6 +155,37 @@ func randomVote() []uint64 {
 	}
 
 	return v
+}
+
+func hardcodedVotes(encryptor rlwe.Encryptor, pastaCipher pasta.Pasta, bfvParams bfv.Parameters) ([][]uint64, [][]uint64) {
+	// encrypt ops with pasta
+	vote1, _, vote1Pasta := generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote1 %d + vote1Pasta %d\n", vote1, vote1Pasta)
+	vote2, _, vote2Pasta := generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote2 %d + vote2Pasta %d\n", vote2, vote2Pasta)
+	vote3, _, vote3Pasta := generateVote([]uint64{0, 0, 1, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote3 %d + vote3Pasta %d\n", vote3, vote3Pasta)
+	vote4, _, vote4Pasta := generateVote([]uint64{0, 1, 0, 0}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote4 %d + vote4Pasta %d\n", vote4, vote4Pasta)
+	vote5, _, vote5Pasta := generateVote([]uint64{0, 0, 0, 1}, encryptor, pastaCipher, bfvParams)
+	fmt.Printf("vote5 %d + vote5Pasta %d\n", vote5, vote5Pasta)
+
+	votesPasta := [][]uint64{vote1Pasta, vote2Pasta, vote3Pasta, vote4Pasta, vote5Pasta}
+	votes := [][]uint64{vote1, vote2, vote3, vote4, vote5}
+
+	return votes, votesPasta
+
+}
+
+func generateVote(vote []uint64, bfvCipher rlwe.Encryptor, pastaCipher pasta.Pasta,
+	params bfv.Parameters) ([]uint64, []byte, []uint64) {
+
+	votePasta := pastaCipher.Encrypt(vote)
+	vote1Pt := rlwe.NewPlaintext(params.Parameters, params.MaxLevel())
+	voteBfv := bfvCipher.EncryptNew(vote1Pt)
+	voteBfvBytes, _ := voteBfv.MarshalBinary()
+
+	return vote, voteBfvBytes, votePasta
 }
 
 // func tonsOfVotes(v [][]uint64, encryptor rlwe.Encryptor, pastaCipher pasta.Pasta, bfvParams bfv.Parameters) [][]uint64 {

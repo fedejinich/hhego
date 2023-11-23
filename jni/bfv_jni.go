@@ -220,14 +220,19 @@ func Java_org_rsksmart_BFV_noiseBudget(env *C.JNIEnv, obj C.jobject, jCt0 C.jbyt
 	evaluator := evaluatorWithRK(BfvParams, rlwe.NewRelinearizationKey(BfvParams.Parameters))
 	encoder := bfv.NewEncoder(BfvParams)
 
-	pt := decryptor.DecryptNew(ct0)
-	values := encoder.DecodeUintNew(pt)
-	// noiseBudget := util.NoiseBudget(evaluator, decryptor, ct0, pt)
-	noiseBudget := PrintNoise(evaluator, decryptor, encoder, ct0, values)
+	noiseBudget := bfv2.NoiseBudget(decryptor, encoder, evaluator, ct0)
+	// pt := decryptor.DecryptNew(ct0)
+	// values := encoder.DecodeUintNew(pt)
+	// // noiseBudget := util.NoiseBudget(evaluator, decryptor, ct0, pt)
+	// noiseBudget := PrintNoise(evaluator, decryptor, encoder, ct0, values)
 	// noiseBudgetC := C.jint(noiseBudget)
 
 	// return noiseBudgetC
-	return C.jint(noiseBudget)
+	noiseBudgetInt := int(noiseBudget)
+
+	fmt.Printf("int noise %d\n", noiseBudgetInt)
+
+	return C.jint(noiseBudgetInt)
 }
 
 // PrintNoise prints the standard deviation of the noise in the given ciphertext.

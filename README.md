@@ -46,16 +46,11 @@ This script produces a JSON output with the following structure:
 
 ```json
 {
-	// Generated votes
-    "votes": [[1, 0, 0, 0], [0, 1, 0, 0]],
-    // Encrypted votes using PASTA
-    "votesPasta": [[30447, 62405, 62714, 38763], [30446, 62406, 62714, 38763]], 
-    // BFV-encrypted PASTA secret key
-    "pastaSK": [...], 
-	// Relinearization key (for converting PASTA votes to BFV votes)
-    "rk": [...], 
-	// BFV secret key (used for encrypting PASTA SK)
-    "bfvSK": [...] 
+    "votes": [[1, 0, 0, 0], [0, 1, 0, 0]], // Generated votes
+    "votesPasta": [[30447, 62405, 62714, 38763], [30446, 62406, 62714, 38763]], // Encrypted votes using PASTA
+    "pastaSK": [1, 1, 1, 1, 1], // BFV-encrypted PASTA secret key
+	"rk": [1, 1, 1, 1, 1], // Relinearization key (for converting PASTA votes to BFV votes)
+	"bfvSK": [1, 1, 1, 1, 1] // BFV secret key (used for encrypting PASTA SK)
 }
 ```
 
